@@ -1,0 +1,7 @@
+﻿baseCellSize: 10
+minZoom: 0.5
+maxZoom: 8.0
+zoomStep: 1.15
+panSpeed: 700.0
+selectionColor: "#FFD700"
+playerColor: "#FFFF00"

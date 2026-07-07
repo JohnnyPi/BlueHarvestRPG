@@ -1,0 +1,30 @@
+namespace Game.Client.Input;
+
+public enum InputAction
+{
+    PanNorth,
+    PanSouth,
+    PanWest,
+    PanEast,
+    MoveNorth,
+    MoveSouth,
+    MoveWest,
+    MoveEast,
+    MoveNorthWest,
+    MoveNorthEast,
+    MoveSouthWest,
+    MoveSouthEast,
+    OpenContextMenu,
+    ConfirmMenu,
+    CancelMenu,
+    MoveToSelected,
+    EnterCell,
+    LeaveLocalMap,
+    RemoveTerrain,
+    SaveGame,
+    Wait,
+    RecenterCamera,
+    OpenPauseMenu,
+    OpenInventory,
+    OpenCharacterSheet,
+}

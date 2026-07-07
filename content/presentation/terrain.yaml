@@ -1,0 +1,55 @@
+﻿terrain:
+  DeepWater:
+    name: Deep Water
+    color: "#00008B"
+  ShallowWater:
+    name: Shallow Water
+    color: "#4682B4"
+  Sand:
+    name: Sand
+    color: "#F4A460"
+  Dirt:
+    name: Dirt
+    color: "#8B4513"
+  Grass:
+    name: Grass
+    color: "#6B8E23"
+  Mud:
+    name: Mud
+    color: "#556B2F"
+  Rock:
+    name: Rock
+    color: "#808080"
+  Tree:
+    name: Tree
+    color: "#006400"
+  Road:
+    name: Road
+    color: "#A0522D"
+  Concrete:
+    name: Concrete
+    color: "#B0B0B0"
+  Wall:
+    name: Wall
+    color: "#505050"
+  Fence:
+    name: Fence
+    color: "#8B7355"
+  Floor:
+    name: Floor
+    color: "#C0C0C0"
+  Door:
+    name: Door
+    color: "#654321"
+  TunnelFloor:
+    name: Tunnel Floor
+    color: "#696969"
+  CavernWall:
+    name: Cavern Wall
+    color: "#4A4A4A"
+  RuinStone:
+    name: Ruin Stone
+    color: "#9C8B7A"
+  Dock:
+    name: Dock
+    color: "#708090"

@@ -1,0 +1,9 @@
+﻿startingLevel: 1
+startingExperience: 0
+attributes:
+  - id: strength
+    name: Strength
+    default: 10
+  - id: vitality
+    name: Vitality
+    default: 10

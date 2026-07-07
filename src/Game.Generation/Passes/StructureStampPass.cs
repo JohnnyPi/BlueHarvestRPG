@@ -1,0 +1,31 @@
+using Game.Simulation.Coordinates;
+using Game.Simulation.LocalMaps;
+using Game.Simulation.World.Island;
+
+namespace Game.Generation.Passes;
+
+public sealed class StructureStampPass : IGenerationPass
+{
+    public void Execute(LocalMap map, LocalGenerationContext context)
+    {
+        if (context.IslandPlan is null)
+        {
+            return;
+        }
+
+        foreach (StructurePlacement structure in context.IslandPlan.Structures)
+        {
+            if (!CoordinateMath.OverlapsCell(
+                    structure.GlobalOriginX,
+                    structure.GlobalOriginY,
+                    structure.Width,
+                    structure.Height,
+                    context.WorldCoordinate))
+            {
+                continue;
+            }
+
+            StructureStampHelper.StampBuilding(map, context.WorldCoordinate, structure);
+        }
+    }
+}

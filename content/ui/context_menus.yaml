@@ -1,0 +1,23 @@
+﻿overworld:
+  - id: move
+    label: Move
+    intent: MoveToSelected
+  - id: enter
+    label: Enter
+    intent: EnterSelected
+  - id: inspect
+    label: Inspect
+    intent: InspectSelected
+localMap:
+  - id: move
+    label: Move
+    intent: MoveToSelected
+  - id: inspect
+    label: Inspect
+    intent: InspectSelected
+  - id: harvest
+    label: Harvest Tree
+    intent: HarvestAtSelected
+  - id: remove
+    label: Remove Tree
+    intent: RemoveTerrainAtSelected

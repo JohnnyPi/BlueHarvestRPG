@@ -1,0 +1,28 @@
+﻿biomes:
+  Ocean:
+    name: Ocean
+    color: "#001A4D"
+  Beach:
+    name: Beach
+    color: "#E8C872"
+  Plains:
+    name: Plains
+    color: "#C2B280"
+  Forest:
+    name: Forest
+    color: "#1B5E20"
+  Swamp:
+    name: Swamp
+    color: "#2F6B5F"
+  Hills:
+    name: Hills
+    color: "#A0784A"
+  Mountains:
+    name: Mountains
+    color: "#9E9E9E"
+  Jungle:
+    name: Jungle
+    color: "#7CB342"
+  Volcanic:
+    name: Volcanic
+    color: "#5C1010"

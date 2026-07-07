@@ -1,0 +1,47 @@
+﻿actions:
+  PanNorth:
+    keyboard: [W, Up]
+  PanSouth:
+    keyboard: [S, Down]
+  PanWest:
+    keyboard: [A, Left]
+  PanEast:
+    keyboard: [D, Right]
+  MoveNorth:
+    keyboard: [K, NumPad8]
+  MoveSouth:
+    keyboard: [J, NumPad2]
+  MoveWest:
+    keyboard: [H, NumPad4]
+  MoveEast:
+    keyboard: [L, NumPad6]
+  MoveNorthWest:
+    keyboard: [NumPad7]
+  MoveNorthEast:
+    keyboard: [NumPad9]
+  MoveSouthWest:
+    keyboard: [NumPad1]
+  MoveSouthEast:
+    keyboard: [NumPad3]
+  OpenContextMenu:
+    mouse: [RightButton]
+  ConfirmMenu:
+    mouse: [LeftButton]
+  EnterCell:
+    keyboard: [Enter]
+  RemoveTerrain:
+    keyboard: [X]
+  SaveGame:
+    keyboard: [F5]
+  Wait:
+    keyboard: [Space, NumPad5]
+  CancelMenu:
+    keyboard: [Escape]
+  OpenPauseMenu:
+    keyboard: [Escape]
+  OpenInventory:
+    keyboard: [I]
+  OpenCharacterSheet:
+    keyboard: [U]
+  RecenterCamera:
+    keyboard: [Home, C]

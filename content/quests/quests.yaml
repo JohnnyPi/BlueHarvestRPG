@@ -1,0 +1,21 @@
+﻿quests:
+  - id: scenario_escape
+    title: Escape
+    objective: Reach your escape route
+    target: 1
+  - id: scenario_mystery
+    title: Mystery
+    objective: Investigate the mystery site
+    target: 1
+  - id: scenario_endure
+    title: Endure
+    objective: Survive rising island pressure
+    target: 60
+  - id: gather_wood
+    title: Woodcutter
+    objective: Gather 5 wood
+    target: 5
+  - id: first_kill
+    title: First Blood
+    objective: Defeat a creature
+    target: 1
