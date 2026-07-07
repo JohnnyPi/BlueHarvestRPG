@@ -5,5 +5,5 @@ namespace Game.Simulation.LocalMaps;
 
 public interface ILocalMapGenerator
 {
-    LocalMap Generate(Overworld world, WorldCoord coordinate);
+    LocalMap Generate(Overworld world, MapKey key);
 }

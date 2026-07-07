@@ -34,6 +34,14 @@ public static class GridPathfinder
             TerrainId.Wall => 10,
             TerrainId.CavernWall => 10,
             TerrainId.RuinStone => 4,
+            TerrainId.InteriorWall => 10,
+            TerrainId.Counter => 4,
+            TerrainId.Window => 2,
+            TerrainId.Rubble => 4,
+            TerrainId.Machinery => 6,
+            TerrainId.StairsUp => 2,
+            TerrainId.StairsDown => 2,
+            TerrainId.StructureExit => 2,
             _ => 3
         };
     }

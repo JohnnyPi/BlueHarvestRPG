@@ -1,6 +1,6 @@
+using Game.Generation.LocalMaps;
 using Game.Content;
 using Game.Content.Definitions;
-using Game.Generation.LocalMaps;
 using Game.Generation.WorldGen;
 using Game.Persistence.Repositories;
 using Game.Persistence.Saves;
@@ -25,7 +25,8 @@ public static class GameBootstrap
     public static SimulationHost CreateSimulationHost(GameContentBundle bundle, string? saveDirectory = null)
     {
         var saveManager = new SaveManager(saveDirectory);
-        var localMapGenerator = new LocalMapGenerator();
+        var blueprintCatalog = bundle.CreateBlueprintCatalog();
+        var localMapGenerator = new LocalMapGenerator(blueprintCatalog);
         uint biomeRulesHash = BiomeRulesHash.Compute(bundle.BiomeRules);
 
         if (saveManager.TryLoad(
@@ -101,7 +102,8 @@ public static class GameBootstrap
 
             if (session.ViewMode == GameViewMode.LocalMap)
             {
-                session.ActiveLocalMap = repository.GetOrGenerate(session.PlayerWorldPosition);
+                var worldPosition = session.PlayerWorldPosition;
+                session.ActiveLocalMap = repository.GetOrGenerateSurface(worldPosition);
                 session.EnsurePlayerEntity();
                 session.UpdateVisibility();
             }
@@ -109,6 +111,7 @@ public static class GameBootstrap
             var host = new SimulationHost(world, session, repository)
             {
                 ViewContent = RenderViewContentFactory.Create(bundle),
+                BlueprintCatalog = blueprintCatalog,
                 IsNewGame = false
             };
             host.Initialize();
@@ -116,7 +119,7 @@ public static class GameBootstrap
         }
 
         ulong seed = (ulong)DateTime.UtcNow.Ticks;
-        var islandGenerator = new IslandWorldGenerator(bundle.Island);
+        var islandGenerator = new IslandWorldGenerator(bundle.Island, blueprintCatalog);
         world = islandGenerator.Generate(seed);
 
         var newRepository = new PersistentLocalMapRepository(world, localMapGenerator);
@@ -131,6 +134,7 @@ public static class GameBootstrap
         return new SimulationHost(world, newSession, newRepository)
         {
             ViewContent = RenderViewContentFactory.Create(bundle),
+            BlueprintCatalog = blueprintCatalog,
             IsNewGame = true
         };
     }

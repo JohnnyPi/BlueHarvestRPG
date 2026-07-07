@@ -13,9 +13,9 @@ public sealed class PersistentLocalMapRepository : ILocalMapRepository
         _inner = new InMemoryLocalMapRepository(world, generator);
     }
 
-    public LocalMap GetOrGenerate(WorldCoord coordinate) => _inner.GetOrGenerate(coordinate);
+    public LocalMap GetOrGenerate(MapKey key) => _inner.GetOrGenerate(key);
 
-    public bool TryGet(WorldCoord coordinate, out LocalMap map) => _inner.TryGet(coordinate, out map!);
+    public bool TryGet(MapKey key, out LocalMap map) => _inner.TryGet(key, out map!);
 
     public void Store(LocalMap map) => _inner.Store(map);
 

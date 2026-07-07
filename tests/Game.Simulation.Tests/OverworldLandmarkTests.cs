@@ -74,7 +74,7 @@ public class OverworldLandmarkTests
         IslandPlan plan = host.Overworld.IslandPlan!;
         WorldCoord visitor = plan.VisitorCenterCell;
         var localGenerator = new LocalMapGenerator();
-        LocalMap preview = localGenerator.Generate(host.Overworld, visitor);
+        LocalMap preview = localGenerator.Generate(host.Overworld, MapKey.Surface(visitor));
 
         Assert.True(OverworldLandmarkCatalog.TryResolveEntryPoint(plan, visitor, preview, out LocalCoord entry));
         Assert.True(preview.Contains(entry));

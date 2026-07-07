@@ -111,12 +111,12 @@ public class IslandGeneratorTests
         var localGenerator = new LocalMapGenerator();
 
         WorldCoord coord = world.IslandPlan!.VisitorCenterCell;
-        LocalMap first = localGenerator.Generate(world, coord);
-        LocalMap second = localGenerator.Generate(world, coord);
+        LocalMap first = localGenerator.Generate(world, MapKey.Surface(coord));
+        LocalMap second = localGenerator.Generate(world, MapKey.Surface(coord));
 
         Assert.Equal(first.Terrain, second.Terrain);
         Assert.Equal(first.Flags, second.Flags);
-        Assert.Contains(first.Terrain, t => t is TerrainId.Floor or TerrainId.Wall or TerrainId.Concrete);
+        Assert.Contains(first.Terrain, t => t is TerrainId.Floor or TerrainId.Wall or TerrainId.Concrete or TerrainId.InteriorWall or TerrainId.Counter);
     }
 
     [Fact]

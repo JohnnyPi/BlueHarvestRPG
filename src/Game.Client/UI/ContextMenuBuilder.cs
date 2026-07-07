@@ -2,6 +2,7 @@ using Game.Content.Definitions;
 using Game.Simulation.Input;
 using Game.Simulation.Session;
 using Game.Simulation.World;
+using Game.Simulation.World.Island;
 
 namespace Game.Client.UI;
 
@@ -13,7 +14,8 @@ public static class ContextMenuBuilder
         int tileY,
         ContextMenusDefinition menus,
         Overworld overworld,
-        GameSession session)
+        GameSession session,
+        StructureBlueprintCatalog blueprintCatalog)
     {
         IReadOnlyList<ContextMenuEntry> source = viewMode == GameViewMode.Overworld
             ? menus.Overworld
@@ -22,7 +24,7 @@ public static class ContextMenuBuilder
         var items = new List<ContextMenuItem>();
         foreach (ContextMenuEntry entry in source)
         {
-            if (!IsActionAvailable(session, viewMode, tileX, tileY, entry.Intent))
+            if (!IsActionAvailable(session, viewMode, tileX, tileY, entry.Intent, blueprintCatalog))
             {
                 continue;
             }
@@ -47,7 +49,8 @@ public static class ContextMenuBuilder
         GameViewMode viewMode,
         int tileX,
         int tileY,
-        string intent)
+        string intent,
+        StructureBlueprintCatalog blueprintCatalog)
     {
         if (!Enum.TryParse(intent, ignoreCase: true, out GameIntent gameIntent))
         {
@@ -59,6 +62,11 @@ public static class ContextMenuBuilder
             GameIntent.HarvestAtSelected => session.CanHarvestAt(tileX, tileY),
             GameIntent.RemoveTerrainAtSelected => session.CanRemoveTreeTerrainAt(tileX, tileY),
             GameIntent.EnterSelected => viewMode == GameViewMode.Overworld && session.CanEnterOverworldTile(tileX, tileY),
+            GameIntent.EnterStructure => session.CanEnterStructureAt(tileX, tileY, blueprintCatalog),
+            GameIntent.ExitStructure => session.CanExitStructureAt(tileX, tileY, blueprintCatalog),
+            GameIntent.UseStairsUp => session.CanUseTileTransition(tileX, tileY, blueprintCatalog, TileTransitionKind.StairsUp),
+            GameIntent.UseStairsDown => session.CanUseTileTransition(tileX, tileY, blueprintCatalog, TileTransitionKind.StairsDown),
+            GameIntent.UseRopeDescent => session.CanUseRopeAt(tileX, tileY, blueprintCatalog),
             _ => true
         };
     }

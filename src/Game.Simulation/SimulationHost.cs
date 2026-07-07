@@ -1,3 +1,4 @@
+using Game.Simulation.World.Island;
 using Game.Simulation.AI;
 using Game.Simulation.Coordinates;
 using Game.Simulation.Entities;
@@ -11,7 +12,6 @@ using Game.Simulation.Scenarios;
 using Game.Simulation.Session;
 using Game.Simulation.Time;
 using Game.Simulation.World;
-using Game.Simulation.World.Island;
 
 namespace Game.Simulation;
 
@@ -36,6 +36,9 @@ public sealed class SimulationHost
     public SimulationClock Clock => _turnScheduler.Clock;
 
     public RenderViewContent ViewContent { get; set; } = new();
+
+    public StructureBlueprintCatalog BlueprintCatalog { get; set; } =
+        StructureBlueprintCatalogDefaults.Create();
 
     public string? HoverTooltip { get; set; }
 
@@ -254,6 +257,41 @@ public sealed class SimulationHost
                 if (queued.HasTarget)
                 {
                     Session.QueueMoveToBorderTransition(queued.TargetX, queued.TargetY, Direction.West);
+                }
+
+                break;
+            case GameIntent.EnterStructure:
+                if (queued.HasTarget)
+                {
+                    Session.TryUseTileTransition(queued.TargetX, queued.TargetY, BlueprintCatalog);
+                }
+
+                break;
+            case GameIntent.ExitStructure:
+                if (queued.HasTarget)
+                {
+                    Session.TryUseTileTransition(queued.TargetX, queued.TargetY, BlueprintCatalog);
+                }
+
+                break;
+            case GameIntent.UseStairsUp:
+                if (queued.HasTarget)
+                {
+                    Session.TryUseTileTransition(queued.TargetX, queued.TargetY, BlueprintCatalog, TileTransitionKind.StairsUp);
+                }
+
+                break;
+            case GameIntent.UseStairsDown:
+                if (queued.HasTarget)
+                {
+                    Session.TryUseTileTransition(queued.TargetX, queued.TargetY, BlueprintCatalog, TileTransitionKind.StairsDown);
+                }
+
+                break;
+            case GameIntent.UseRopeDescent:
+                if (queued.HasTarget)
+                {
+                    Session.TryUseTileTransition(queued.TargetX, queued.TargetY, BlueprintCatalog);
                 }
 
                 break;

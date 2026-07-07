@@ -142,7 +142,7 @@ public class RaptorBehaviorTests
             out _);
 
         Assert.True(loaded);
-        Entity? restored = loadedRepository.GetOrGenerate(forestCell).Entities.GetById(raptorId);
+        Entity? restored = loadedRepository.GetOrGenerateSurface(forestCell).Entities.GetById(raptorId);
         Assert.NotNull(restored);
         Assert.Equal(RaptorPhase.Retreat, restored!.Raptor!.Phase);
         Assert.Equal(4, restored.Raptor.AmbushCooldown);

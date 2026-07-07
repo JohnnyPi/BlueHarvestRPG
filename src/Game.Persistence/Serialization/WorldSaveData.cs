@@ -32,6 +32,8 @@ public sealed class LocalMapSaveData
 {
     public int WorldX { get; init; }
     public int WorldY { get; init; }
+    public int StructureInstanceId { get; init; }
+    public int FloorIndex { get; init; }
     public ushort[] Terrain { get; init; } = [];
     public byte[] Flags { get; init; } = [];
     public bool[]? Explored { get; init; }
@@ -81,7 +83,7 @@ public sealed class MovementStepSaveData
 
 public sealed class WorldSaveData
 {
-    public const int FormatVersion = 8;
+    public const int FormatVersion = 9;
 
     public int FormatVersionNumber { get; init; } = FormatVersion;
     public uint GeneratorVersion { get; init; }
@@ -125,6 +127,8 @@ public sealed class WorldSaveData
     public string? RunEndSummary { get; init; }
     public List<int> FinaleThreats { get; init; } = [];
     public bool? FirstEncounterTriggered { get; init; }
+    public int? ActiveStructureInstanceId { get; init; }
+    public int? ActiveFloorIndex { get; init; }
 }
 
 public sealed class ItemStackSaveData
@@ -157,6 +161,8 @@ public static class LocalMapSerializer
         {
             WorldX = map.WorldPosition.X,
             WorldY = map.WorldPosition.Y,
+            StructureInstanceId = map.StructureInstanceId,
+            FloorIndex = map.FloorIndex,
             Terrain = terrain,
             Flags = flags,
             Explored = map.Explored.ToArray(),
@@ -187,7 +193,11 @@ public static class LocalMapSerializer
     {
         ValidateMapData(data);
 
-        var map = new LocalMap(new WorldCoord(data.WorldX, data.WorldY));
+        var key = new MapKey(
+            new WorldCoord(data.WorldX, data.WorldY),
+            data.StructureInstanceId,
+            data.FloorIndex);
+        var map = new LocalMap(key);
 
         for (int i = 0; i < map.Terrain.Length; i++)
         {

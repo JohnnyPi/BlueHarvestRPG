@@ -4,7 +4,8 @@ public enum ItemId
 {
     None = 0,
     Wood = 1,
-    Berry = 2
+    Berry = 2,
+    Rope = 3
 }
 
 public readonly record struct ItemStack(ItemId ItemId, int Count);

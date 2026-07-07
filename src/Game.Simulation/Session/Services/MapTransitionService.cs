@@ -13,7 +13,7 @@ public sealed class MapTransitionService
         int borderLocalX,
         int borderLocalY)
     {
-        if (session.ViewMode != GameViewMode.LocalMap)
+        if (session.ViewMode != GameViewMode.LocalMap || session.ActiveLocalMap?.IsSurface != true)
         {
             return false;
         }
@@ -29,7 +29,7 @@ public sealed class MapTransitionService
             return false;
         }
 
-        if (session.LocalMapRepository.TryGet(transition.DestinationWorld, out LocalMap destination))
+        if (session.LocalMapRepository.TryGetSurface(transition.DestinationWorld, out LocalMap destination))
         {
             return HasWalkableLanding(destination, transition.DestinationLocal);
         }
@@ -43,7 +43,7 @@ public sealed class MapTransitionService
         int borderLocalX,
         int borderLocalY)
     {
-        if (session.ViewMode != GameViewMode.LocalMap)
+        if (session.ViewMode != GameViewMode.LocalMap || session.ActiveLocalMap?.IsSurface != true)
         {
             return false;
         }
@@ -59,7 +59,7 @@ public sealed class MapTransitionService
             return false;
         }
 
-        LocalMap destination = session.LocalMapRepository.GetOrGenerate(transition.DestinationWorld);
+        LocalMap destination = session.LocalMapRepository.GetOrGenerateSurface(transition.DestinationWorld);
         return HasWalkableLanding(destination, transition.DestinationLocal);
     }
 
@@ -100,7 +100,7 @@ public sealed class MapTransitionService
             return false;
         }
 
-        LocalMap destination = session.LocalMapRepository.GetOrGenerate(transition.DestinationWorld);
+        LocalMap destination = session.LocalMapRepository.GetOrGenerateSurface(transition.DestinationWorld);
         LocalCoord landing = WalkabilityHelper.FindNearestWalkable(destination, transition.DestinationLocal);
         if (destination.BlocksMovement(landing))
         {

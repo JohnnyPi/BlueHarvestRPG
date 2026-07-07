@@ -21,3 +21,18 @@ localMap:
   - id: remove
     label: Remove Tree
     intent: RemoveTerrainAtSelected
+  - id: enter_structure
+    label: Enter Building
+    intent: EnterStructure
+  - id: exit_structure
+    label: Exit Building
+    intent: ExitStructure
+  - id: stairs_up
+    label: Climb Stairs
+    intent: UseStairsUp
+  - id: stairs_down
+    label: Descend Stairs
+    intent: UseStairsDown
+  - id: rope_descent
+    label: Rappel Down (Rope)
+    intent: UseRopeDescent

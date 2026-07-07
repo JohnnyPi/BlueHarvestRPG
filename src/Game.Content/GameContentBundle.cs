@@ -1,4 +1,5 @@
 using Game.Content.Definitions;
+using Game.Simulation.World.Island;
 
 namespace Game.Content;
 
@@ -15,4 +16,7 @@ public sealed class GameContentBundle
     public required ItemsDefinition Items { get; init; }
     public required CharacterDefaultsDefinition CharacterDefaults { get; init; }
     public required UiThemeDefinition UiTheme { get; init; }
+    public required StructureBlueprintsDefinition StructureBlueprints { get; init; }
+
+    public StructureBlueprintCatalog CreateBlueprintCatalog() => new(StructureBlueprints);
 }

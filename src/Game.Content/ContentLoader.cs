@@ -2,6 +2,7 @@ using Game.Content.Definitions;
 using Game.Simulation.Input;
 using Game.Simulation.LocalMaps;
 using Game.Simulation.World;
+using Game.Simulation.World.Island;
 using YamlDotNet.Serialization;
 using YamlDotNet.Serialization.NamingConventions;
 
@@ -34,6 +35,7 @@ public sealed class ContentLoader
         var items = Load<ItemsDefinition>("items.yaml");
         var characterDefaults = Load<CharacterDefaultsDefinition>(Path.Combine("character", "defaults.yaml"));
         var uiTheme = Load<UiThemeDefinition>(Path.Combine("ui", "theme.yaml"));
+        var structureBlueprints = Load<StructureBlueprintsDefinition>(Path.Combine("structures", "blueprints.yaml"));
 
         var bundle = new GameContentBundle
         {
@@ -48,6 +50,7 @@ public sealed class ContentLoader
             Items = items,
             CharacterDefaults = characterDefaults,
             UiTheme = uiTheme,
+            StructureBlueprints = structureBlueprints,
         };
 
         Validate(bundle);

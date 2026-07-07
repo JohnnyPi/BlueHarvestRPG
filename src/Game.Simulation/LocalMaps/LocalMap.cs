@@ -8,19 +8,34 @@ public sealed class LocalMap
     public const int Width = 64;
     public const int Height = 64;
 
-    public WorldCoord WorldPosition { get; }
+    public MapKey Key { get; }
+
+    public WorldCoord WorldPosition => Key.WorldPosition;
+
+    public int StructureInstanceId => Key.StructureInstanceId;
+
+    public int FloorIndex => Key.FloorIndex;
+
+    public bool IsSurface => Key.IsSurface;
+
+    public bool IsStructureInterior => Key.IsStructureInterior;
 
     public TerrainId[] Terrain { get; }
     public TileFlags[] Flags { get; }
     public bool[] Explored { get; }
     public MapEntityStore Entities { get; } = new();
 
-    public LocalMap(WorldCoord worldPosition)
+    public LocalMap(MapKey key)
     {
-        WorldPosition = worldPosition;
+        Key = key;
         Terrain = new TerrainId[Width * Height];
         Flags = new TileFlags[Width * Height];
         Explored = new bool[Width * Height];
+    }
+
+    public LocalMap(WorldCoord worldPosition)
+        : this(MapKey.Surface(worldPosition))
+    {
     }
 
     public int GetIndex(int x, int y)

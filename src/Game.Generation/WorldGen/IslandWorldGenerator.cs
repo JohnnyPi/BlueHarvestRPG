@@ -1,3 +1,4 @@
+using Game.Simulation.World.Island;
 using Game.Content.Definitions;
 using Game.Generation.Island;
 using Game.Generation.Regional;
@@ -12,10 +13,10 @@ public sealed class IslandWorldGenerator
     private readonly IslandPlanner _planner;
     private readonly IslandDefinition _config;
 
-    public IslandWorldGenerator(IslandDefinition config)
+    public IslandWorldGenerator(IslandDefinition config, StructureBlueprintCatalog? blueprintCatalog = null)
     {
         _config = config;
-        _planner = new IslandPlanner(config);
+        _planner = new IslandPlanner(config, blueprintCatalog);
     }
 
     public Overworld Generate(ulong seed)

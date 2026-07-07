@@ -53,3 +53,27 @@
   Dock:
     name: Dock
     color: "#708090"
+  InteriorWall:
+    name: Interior Wall
+    color: "#606060"
+  Counter:
+    name: Counter
+    color: "#8B6914"
+  Window:
+    name: Window
+    color: "#87CEEB"
+  Rubble:
+    name: Rubble
+    color: "#7A6A5A"
+  Machinery:
+    name: Machinery
+    color: "#4A5568"
+  StairsUp:
+    name: Stairs Up
+    color: "#9B7653"
+  StairsDown:
+    name: Stairs Down
+    color: "#7B5633"
+  StructureExit:
+    name: Structure Exit
+    color: "#8B4513"

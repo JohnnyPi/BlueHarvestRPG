@@ -82,7 +82,7 @@ public static class MaintenanceStage
         {
             IslandPlacementHelper.MarkRole(plan, cell, IslandCellRole.Maintenance);
             (int gx, int gy) = IslandPlacementHelper.CenteredOrigin(cell, 12, 10);
-            plan.Structures.Add(new StructurePlacement(
+            plan.Structures.Add(StructurePlacement.CreatePending(
                 StructureType.MaintenanceCompound,
                 gx,
                 gy,

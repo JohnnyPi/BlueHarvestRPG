@@ -7,7 +7,7 @@ namespace Game.Persistence.Repositories;
 
 public sealed class InMemoryLocalMapRepository : ILocalMapRepository
 {
-    private readonly Dictionary<WorldCoord, LocalMap> _maps = new();
+    private readonly Dictionary<MapKey, LocalMap> _maps = new();
     private readonly Overworld _world;
     private readonly ILocalMapGenerator _generator;
 
@@ -17,28 +17,26 @@ public sealed class InMemoryLocalMapRepository : ILocalMapRepository
         _generator = generator;
     }
 
-    public LocalMap GetOrGenerate(WorldCoord coordinate)
+    public LocalMap GetOrGenerate(MapKey key)
     {
-        if (_maps.TryGetValue(coordinate, out LocalMap? map))
+        if (_maps.TryGetValue(key, out LocalMap? map))
         {
             return map;
         }
 
-        map = _generator.Generate(_world, coordinate);
-        EntityFactory.SpawnDefaults(_world, map);
-        _maps.Add(coordinate, map);
+        map = _generator.Generate(_world, key);
+        if (key.IsSurface)
+        {
+            EntityFactory.SpawnDefaults(_world, map);
+        }
+
+        _maps.Add(key, map);
         return map;
     }
 
-    public bool TryGet(WorldCoord coordinate, out LocalMap map)
-    {
-        return _maps.TryGetValue(coordinate, out map!);
-    }
+    public bool TryGet(MapKey key, out LocalMap map) => _maps.TryGetValue(key, out map!);
 
-    public void Store(LocalMap map)
-    {
-        _maps[map.WorldPosition] = map;
-    }
+    public void Store(LocalMap map) => _maps[map.Key] = map;
 
-    public IReadOnlyDictionary<WorldCoord, LocalMap> Maps => _maps;
+    public IReadOnlyDictionary<MapKey, LocalMap> Maps => _maps;
 }

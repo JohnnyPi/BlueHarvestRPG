@@ -46,6 +46,6 @@ public sealed class CharacterProgressSaveTests
     [Fact]
     public void Format_version_is_eight()
     {
-        Assert.Equal(8, WorldSaveData.FormatVersion);
+        Assert.Equal(9, WorldSaveData.FormatVersion);
     }
 }

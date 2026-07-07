@@ -1,3 +1,4 @@
+using Game.Simulation.World.Island;
 using Game.Simulation.Coordinates;
 using Game.Simulation.LocalMaps;
 using Game.Simulation.World.Island;
@@ -8,7 +9,7 @@ public sealed class StructureStampPass : IGenerationPass
 {
     public void Execute(LocalMap map, LocalGenerationContext context)
     {
-        if (context.IslandPlan is null)
+        if (context.IslandPlan is null || context.BlueprintCatalog is null)
         {
             return;
         }
@@ -25,7 +26,14 @@ public sealed class StructureStampPass : IGenerationPass
                 continue;
             }
 
-            StructureStampHelper.StampBuilding(map, context.WorldCoordinate, structure);
+            var blueprint = context.BlueprintCatalog.ResolveById(structure.BlueprintId);
+            StructureStampHelper.StampBuilding(
+                map,
+                context.WorldCoordinate,
+                structure,
+                blueprint,
+                floorIndex: 0,
+                surfaceView: true);
         }
     }
 }

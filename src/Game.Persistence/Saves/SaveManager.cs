@@ -139,11 +139,17 @@ public sealed class SaveManager
             FinaleThreats = session.FinaleThreats.Threats
                 .Select(threat => (int)threat)
                 .ToList(),
-            FirstEncounterTriggered = session.FirstEncounterTriggered
+            FirstEncounterTriggered = session.FirstEncounterTriggered,
+            ActiveStructureInstanceId = session.ActiveLocalMap?.IsStructureInterior == true
+                ? session.ActiveLocalMap.StructureInstanceId
+                : null,
+            ActiveFloorIndex = session.ActiveLocalMap?.IsStructureInterior == true
+                ? session.ActiveLocalMap.FloorIndex
+                : null
         };
 
         if (session.ActiveLocalMap is not null &&
-            !repository.Maps.ContainsKey(session.ActiveLocalMap.WorldPosition))
+            !repository.Maps.ContainsKey(session.ActiveLocalMap.Key))
         {
             data.LocalMaps.Add(LocalMapSerializer.ToSaveData(session.ActiveLocalMap));
         }
@@ -321,7 +327,11 @@ public sealed class SaveManager
 
             if (session.ViewMode == GameViewMode.LocalMap)
             {
-                session.ActiveLocalMap = repository.GetOrGenerate(session.PlayerWorldPosition);
+                var worldPosition = session.PlayerWorldPosition;
+                MapKey activeKey = data.ActiveStructureInstanceId is int structureId && structureId > 0
+                    ? new MapKey(worldPosition, structureId, data.ActiveFloorIndex ?? 0)
+                    : MapKey.Surface(worldPosition);
+                session.ActiveLocalMap = repository.GetOrGenerate(activeKey);
                 session.EnsurePlayerEntity();
             }
 

@@ -147,7 +147,7 @@ public class MapTransitionTests
             1,
             0);
 
-        LocalMap neighbor = host.LocalMapRepository.GetOrGenerate(new WorldCoord(11, 8));
+        LocalMap neighbor = host.LocalMapRepository.GetOrGenerateSurface(new WorldCoord(11, 8));
         neighbor.SetTerrain(0, edgeY, TerrainId.Rock, TileFlags.BlocksMovement);
 
         Assert.False(host.Session.TryMoveLocal(1, 0));
@@ -258,7 +258,7 @@ public class MapTransitionTests
         int deltaX,
         int deltaY)
     {
-        LocalMap origin = repository.GetOrGenerate(worldPosition);
+        LocalMap origin = repository.GetOrGenerateSurface(worldPosition);
         origin.SetTerrain(localPosition.X, localPosition.Y, TerrainId.Grass, TileFlags.None);
 
         if (!MapTransitionResolver.TryResolve(
@@ -272,7 +272,7 @@ public class MapTransitionTests
             return;
         }
 
-        LocalMap destination = repository.GetOrGenerate(transition.DestinationWorld);
+        LocalMap destination = repository.GetOrGenerateSurface(transition.DestinationWorld);
         destination.SetTerrain(
             transition.DestinationLocal.X,
             transition.DestinationLocal.Y,

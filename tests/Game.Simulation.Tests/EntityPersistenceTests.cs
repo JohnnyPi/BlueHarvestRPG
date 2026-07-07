@@ -45,7 +45,7 @@ public class EntityPersistenceTests
 
         Assert.True(loaded);
         Entity? loadedRaptor = loadedRepository
-            .GetOrGenerate(forestCell)
+            .GetOrGenerateSurface(forestCell)
             .Entities
             .GetById(raptor.Id);
 
@@ -210,7 +210,7 @@ public class EntityPersistenceTests
             out _);
 
         Assert.True(loaded);
-        LocalMap loadedMap = loadedRepository.GetOrGenerate(landCell);
+        LocalMap loadedMap = loadedRepository.GetOrGenerateSurface(landCell);
         Entity? restored = loadedMap.Entities.GetById(treeId);
 
         Assert.NotNull(restored);

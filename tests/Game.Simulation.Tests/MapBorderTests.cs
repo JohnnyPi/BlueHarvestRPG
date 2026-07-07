@@ -95,7 +95,7 @@ public class MapBorderTests
         int deltaX,
         int deltaY)
     {
-        LocalMap origin = repository.GetOrGenerate(worldPosition);
+        LocalMap origin = repository.GetOrGenerateSurface(worldPosition);
         origin.SetTerrain(localPosition.X, localPosition.Y, TerrainId.Grass, TileFlags.None);
 
         if (!MapTransitionResolver.TryResolve(
@@ -109,7 +109,7 @@ public class MapBorderTests
             return;
         }
 
-        LocalMap destination = repository.GetOrGenerate(transition.DestinationWorld);
+        LocalMap destination = repository.GetOrGenerateSurface(transition.DestinationWorld);
         destination.SetTerrain(
             transition.DestinationLocal.X,
             transition.DestinationLocal.Y,

@@ -23,6 +23,7 @@ public sealed class GameSession
     private readonly MapTransitionService _transitions = new();
     private readonly MovementService _movement;
     private readonly InteractionResolver _interactions = new();
+    private readonly StructureTransitionService _structureTransitions = new();
     private bool[] _visibleTiles = new bool[LocalMap.Width * LocalMap.Height];
 
     public GameSession(Overworld overworld, ILocalMapRepository localMapRepository, CharacterProgress? characterProgress = null)
@@ -203,6 +204,9 @@ public sealed class GameSession
     public WorldCoord PlayerWorldPosition { get; set; }
     public LocalCoord PlayerLocalPosition { get; set; }
     public LocalMap? ActiveLocalMap { get; set; }
+    public MapKey? SurfaceReturnKey { get; set; }
+    public LocalCoord? SurfaceReturnPosition { get; set; }
+    public bool IsInStructureInterior => ActiveLocalMap?.IsStructureInterior == true;
     public Inventory Inventory { get; }
     public QuestLog QuestLog { get; }
     public CharacterProgress CharacterProgress { get; }
@@ -330,7 +334,7 @@ public sealed class GameSession
         WorldCoord coordinate = PlayerWorldPosition;
 
         ClearMovement();
-        ActiveLocalMap = LocalMapRepository.GetOrGenerate(coordinate);
+        ActiveLocalMap = LocalMapRepository.GetOrGenerateSurface(coordinate);
         _entityRegistry.EnsureDefaultsSpawned(ActiveLocalMap);
 
         LocalCoord intended;
@@ -526,6 +530,83 @@ public sealed class GameSession
             MessageLog.Add("Something large moves through the trees nearby!");
             MarkRenderDirty();
         }
+    }
+
+    public bool CanUseTileTransition(
+        int x,
+        int y,
+        StructureBlueprintCatalog blueprintCatalog,
+        TileTransitionKind? preferredKind = null)
+    {
+        return _structureTransitions.CanUseTransition(this, x, y, blueprintCatalog, out _, preferredKind);
+    }
+
+    public bool CanUseTileTransition(
+        int x,
+        int y,
+        StructureBlueprintCatalog blueprintCatalog,
+        out TileTransition transition,
+        TileTransitionKind? preferredKind = null)
+    {
+        return _structureTransitions.CanUseTransition(this, x, y, blueprintCatalog, out transition, preferredKind);
+    }
+
+    public bool TryUseTileTransition(
+        int x,
+        int y,
+        StructureBlueprintCatalog blueprintCatalog,
+        TileTransitionKind? preferredKind = null)
+    {
+        if (!_structureTransitions.CanUseTransition(this, x, y, blueprintCatalog, out TileTransition transition, preferredKind))
+        {
+            if (ActiveLocalMap is not null &&
+                TileTransitionResolver.TryResolveAt(
+                    Overworld,
+                    ActiveLocalMap,
+                    new LocalCoord(x, y),
+                    blueprintCatalog,
+                    out TileTransition blocked) &&
+                blocked.RequiresRope)
+            {
+                MessageLog.Add("You need rope to descend from here.");
+                MarkRenderDirty();
+            }
+
+            return false;
+        }
+
+        bool moved = _structureTransitions.TryApplyTransition(this, transition, blueprintCatalog);
+        if (moved)
+        {
+            TrySpawnPendingPressurePredator();
+            ScenarioObjectiveTracker.Check(this);
+        }
+
+        return moved;
+    }
+
+    public bool CanEnterStructureAt(int x, int y, StructureBlueprintCatalog blueprintCatalog)
+    {
+        return CanUseTileTransition(x, y, blueprintCatalog, out TileTransition transition) &&
+               transition.Kind == TileTransitionKind.EnterStructure;
+    }
+
+    public bool CanExitStructureAt(int x, int y, StructureBlueprintCatalog blueprintCatalog)
+    {
+        return CanUseTileTransition(x, y, blueprintCatalog, out TileTransition transition) &&
+               transition.Kind == TileTransitionKind.ExitStructure;
+    }
+
+    public bool CanUseStairsAt(int x, int y, StructureBlueprintCatalog blueprintCatalog)
+    {
+        return CanUseTileTransition(x, y, blueprintCatalog, out TileTransition up, TileTransitionKind.StairsUp) ||
+               CanUseTileTransition(x, y, blueprintCatalog, out TileTransition down, TileTransitionKind.StairsDown);
+    }
+
+    public bool CanUseRopeAt(int x, int y, StructureBlueprintCatalog blueprintCatalog)
+    {
+        return CanUseTileTransition(x, y, blueprintCatalog, out TileTransition transition) &&
+               transition.Kind == TileTransitionKind.RopeDescent;
     }
 
     public bool TryMoveLocal(int deltaX, int deltaY)

@@ -26,7 +26,7 @@ public static class ParkLayoutStage
         IslandPlacementHelper.MarkRole(plan, visitorCell.Value, IslandCellRole.VisitorCenter);
 
         (int visitorGx, int visitorGy) = IslandPlacementHelper.CenteredOrigin(visitorCell.Value, 28, 24);
-        plan.Structures.Add(new StructurePlacement(
+        plan.Structures.Add(StructurePlacement.CreatePending(
             StructureType.VisitorCenter,
             visitorGx,
             visitorGy,
@@ -43,7 +43,7 @@ public static class ParkLayoutStage
         {
             IslandPlacementHelper.MarkRole(plan, dockCell, IslandCellRole.Dock);
             (int gx, int gy) = IslandPlacementHelper.CenteredOrigin(dockCell, 20, 12);
-            plan.Structures.Add(new StructurePlacement(StructureType.Dock, gx, gy, 20, 12));
+            plan.Structures.Add(StructurePlacement.CreatePending(StructureType.Dock, gx, gy, 20, 12));
         }
 
         List<WorldCoord> visitorNeighbors = IslandPlacementHelper
@@ -69,7 +69,7 @@ public static class ParkLayoutStage
             {
                 IslandPlacementHelper.MarkRole(plan, cell, IslandCellRole.Attraction);
                 (int gx, int gy) = IslandPlacementHelper.CenteredOrigin(cell, 18, 18);
-                plan.Structures.Add(new StructurePlacement(StructureType.Attraction, gx, gy, 18, 18));
+                plan.Structures.Add(StructurePlacement.CreatePending(StructureType.Attraction, gx, gy, 18, 18));
             }
         }
     }
@@ -111,7 +111,7 @@ public static class ParkLayoutStage
 
             IslandPlacementHelper.MarkRole(plan, cell, role);
             (int gx, int gy) = IslandPlacementHelper.CenteredOrigin(cell, width, height);
-            plan.Structures.Add(new StructurePlacement(type, gx, gy, width, height));
+            plan.Structures.Add(StructurePlacement.CreatePending(type, gx, gy, width, height));
             placed++;
         }
     }

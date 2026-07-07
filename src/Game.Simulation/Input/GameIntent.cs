@@ -23,6 +23,11 @@ public enum GameIntent
     TransitionBorderEast,
     TransitionBorderSouth,
     TransitionBorderWest,
+    EnterStructure,
+    ExitStructure,
+    UseStairsUp,
+    UseStairsDown,
+    UseRopeDescent,
     Wait,
     None
 }

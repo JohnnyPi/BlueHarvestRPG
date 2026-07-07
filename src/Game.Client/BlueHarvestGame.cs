@@ -192,7 +192,8 @@ public sealed class BlueHarvestGame : Microsoft.Xna.Framework.Game
                     gy,
                     _content.ContextMenus,
                     _simulation.Overworld,
-                    _simulation.Session);
+                    _simulation.Session,
+                    _simulation.BlueprintCatalog);
 
                 _menu.Open(
                     frame.MouseX,

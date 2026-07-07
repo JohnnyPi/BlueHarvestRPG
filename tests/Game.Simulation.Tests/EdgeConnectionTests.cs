@@ -119,8 +119,8 @@ public class EdgeConnectionTests
                         continue;
                     }
 
-                    LocalMap westMap = generator.Generate(world, westCoord);
-                    LocalMap eastMap = generator.Generate(world, eastCoord);
+                    LocalMap westMap = generator.Generate(world, MapKey.Surface(westCoord));
+                    LocalMap eastMap = generator.Generate(world, MapKey.Surface(eastCoord));
 
                     for (int i = 0; i < connection.Width; i++)
                     {

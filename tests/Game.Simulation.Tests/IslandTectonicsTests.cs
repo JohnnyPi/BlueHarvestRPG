@@ -82,6 +82,6 @@ public class IslandTectonicsTests
     [Fact]
     public void WorldGeneratorVersion_ReflectsTectonicPipeline()
     {
-        Assert.Equal(7u, WorldGeneratorVersion.Current);
+        Assert.Equal(8u, WorldGeneratorVersion.Current);
     }
 }

@@ -1,3 +1,5 @@
+using Game.Simulation.World.Island;
+using Game.Generation.LocalMaps;
 using Game.Generation.Passes;
 using Game.Generation.Noise;
 using Game.Simulation.Coordinates;
@@ -16,10 +18,44 @@ public sealed class LocalMapGenerator : ILocalMapGenerator
     private readonly FenceStampPass _fenceStampPass = new();
     private readonly TunnelStampPass _tunnelStampPass = new();
     private readonly RuinStampPass _ruinStampPass = new();
+    private readonly StructureBlueprintCatalog _blueprintCatalog;
+    private readonly StructureFloorGenerator _floorGenerator;
 
-    public LocalMap Generate(Overworld world, WorldCoord coordinate)
+    public LocalMapGenerator(StructureBlueprintCatalog? blueprintCatalog = null)
     {
-        var map = new LocalMap(coordinate);
+        _blueprintCatalog = blueprintCatalog ?? StructureBlueprintCatalogDefaults.Create();
+        _floorGenerator = new StructureFloorGenerator(_blueprintCatalog);
+    }
+
+    public LocalMap Generate(Overworld world, MapKey key)
+    {
+        if (key.IsStructureInterior)
+        {
+            return GenerateStructureFloor(world, key);
+        }
+
+        return GenerateSurface(world, key.WorldPosition);
+    }
+
+    private LocalMap GenerateStructureFloor(Overworld world, MapKey key)
+    {
+        if (world.IslandPlan is null)
+        {
+            throw new InvalidOperationException("Cannot generate structure floors without an island plan.");
+        }
+
+        StructurePlacement? structure = StructurePlacementQueries.FindByInstanceId(world.IslandPlan, key.StructureInstanceId);
+        if (structure is null)
+        {
+            throw new InvalidOperationException($"Unknown structure instance {key.StructureInstanceId}.");
+        }
+
+        return _floorGenerator.Generate(world, key, structure);
+    }
+
+    public LocalMap GenerateSurface(Overworld world, WorldCoord coordinate)
+    {
+        var map = new LocalMap(MapKey.Surface(coordinate));
         WorldCell cell = world.GetCellValue(coordinate);
         IslandPlan? islandPlan = world.IslandPlan;
 
@@ -72,7 +108,8 @@ public sealed class LocalMapGenerator : ILocalMapGenerator
             WorldCoordinate = coordinate,
             WorldCell = cell,
             Connections = world.GetEdgeConnections(coordinate).ToArray(),
-            IslandPlan = islandPlan
+            IslandPlan = islandPlan,
+            BlueprintCatalog = _blueprintCatalog
         };
 
         if (islandPlan is not null)

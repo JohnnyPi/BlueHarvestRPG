@@ -1,0 +1,76 @@
+﻿blueprints:
+  - id: visitor_center
+    structureTypes: [VisitorCenter]
+    floorCount: 1
+    basementCount: 1
+    stairX: 20
+    stairY: 10
+    doorX: 14
+    doorY: 23
+    detailTerrain: Counter
+  - id: hotel
+    structureTypes: [Hotel]
+    floorCount: 3
+    basementCount: 0
+    stairX: 20
+    stairY: 8
+    doorX: 12
+    doorY: 17
+    ropeExitFloor: 2
+    ropeExitX: 22
+    ropeExitY: 1
+    detailTerrain: Counter
+  - id: restaurant
+    structureTypes: [Restaurant]
+    floorCount: 1
+    basementCount: 0
+    stairX: 6
+    stairY: 5
+    doorX: 7
+    doorY: 11
+    detailTerrain: Counter
+  - id: maintenance
+    structureTypes: [MaintenanceCompound]
+    floorCount: 1
+    basementCount: 1
+    stairX: 5
+    stairY: 4
+    doorX: 6
+    doorY: 9
+    detailTerrain: Machinery
+  - id: attraction
+    structureTypes: [Attraction]
+    floorCount: 1
+    basementCount: 0
+    stairX: 8
+    stairY: 8
+    doorX: 9
+    doorY: 17
+    detailTerrain: Rubble
+  - id: dock
+    structureTypes: [Dock]
+    floorCount: 1
+    basementCount: 0
+    stairX: 10
+    stairY: 5
+    doorX: 10
+    doorY: 11
+    detailTerrain: ""
+  - id: helipad
+    structureTypes: [Helipad]
+    floorCount: 1
+    basementCount: 0
+    stairX: 5
+    stairY: 5
+    doorX: 5
+    doorY: 5
+    detailTerrain: ""
+  - id: default_building
+    structureTypes: []
+    floorCount: 1
+    basementCount: 0
+    stairX: 4
+    stairY: 4
+    doorX: 4
+    doorY: 8
+    detailTerrain: ""

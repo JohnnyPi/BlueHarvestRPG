@@ -1,3 +1,4 @@
+using Game.Simulation.World.Island;
 using Game.Content.Definitions;
 using Game.Generation.Island.Stages;
 using Game.Simulation.World;
@@ -8,10 +9,12 @@ namespace Game.Generation.Island;
 public sealed class IslandPlanner
 {
     private readonly IslandDefinition _config;
+    private readonly StructureBlueprintCatalog _blueprintCatalog;
 
-    public IslandPlanner(IslandDefinition config)
+    public IslandPlanner(IslandDefinition config, StructureBlueprintCatalog? blueprintCatalog = null)
     {
         _config = config;
+        _blueprintCatalog = blueprintCatalog ?? StructureBlueprintCatalogDefaults.Create();
     }
 
     public IslandPlan Generate(int width, int height, ulong seed)
@@ -32,6 +35,7 @@ public sealed class IslandPlanner
         TunnelStage.Execute(plan, _config, seed);
         BiomeFinalizeStage.Execute(plan, seed);
         IslandBalanceStage.Execute(plan, _config, seed);
+        StructureFinalizeStage.Execute(plan, seed, _blueprintCatalog);
 
         return plan;
     }

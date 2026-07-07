@@ -122,8 +122,25 @@ public static class OverworldLandmarkCatalog
         StructurePlacement? structure = FindStructureAt(plan, worldCell);
         if (structure is not null)
         {
-            if (TryResolveStructureEntry(structure, worldCell, map, out entryPoint))
+            var blueprint = StructureBlueprintCatalogDefaults.Create().ResolveById(structure.BlueprintId);
+            LocalCoord door = StructurePlacementQueries.ToLocalCoord(
+                worldCell,
+                structure,
+                blueprint.DoorX,
+                blueprint.DoorY);
+
+            if (structure.Type == StructureType.Helipad)
             {
+                door = StructurePlacementQueries.ToLocalCoord(
+                    worldCell,
+                    structure,
+                    blueprint.DoorX,
+                    blueprint.DoorY);
+            }
+
+            if (map.Contains(door))
+            {
+                entryPoint = WalkabilityHelper.FindNearestWalkable(map, door);
                 return true;
             }
         }

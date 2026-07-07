@@ -19,5 +19,13 @@ public enum TerrainId : ushort
     TunnelFloor,
     CavernWall,
     RuinStone,
-    Dock
+    Dock,
+    InteriorWall,
+    Counter,
+    Window,
+    Rubble,
+    Machinery,
+    StairsUp,
+    StairsDown,
+    StructureExit
 }

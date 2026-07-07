@@ -70,8 +70,8 @@ public class GenerationDeterminismTests
         Overworld world = overworldGenerator.Generate(64, 64, seed);
         var coord = new WorldCoord(10, 12);
 
-        LocalMap first = localGenerator.Generate(world, coord);
-        LocalMap second = localGenerator.Generate(world, coord);
+        LocalMap first = localGenerator.Generate(world, MapKey.Surface(coord));
+        LocalMap second = localGenerator.Generate(world, MapKey.Surface(coord));
 
         Assert.Equal(first.Terrain, second.Terrain);
         Assert.Equal(first.Flags, second.Flags);

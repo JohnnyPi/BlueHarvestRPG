@@ -1,3 +1,4 @@
+using Game.Simulation.World.Island;
 using Game.Simulation.Coordinates;
 using Game.Simulation.World;
 using Game.Simulation.World.Island;
@@ -11,4 +12,5 @@ public sealed class LocalGenerationContext
     public required WorldCell WorldCell { get; init; }
     public required IReadOnlyList<EdgeConnection> Connections { get; init; }
     public IslandPlan? IslandPlan { get; init; }
+    public StructureBlueprintCatalog? BlueprintCatalog { get; init; }
 }
