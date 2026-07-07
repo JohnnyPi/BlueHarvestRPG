@@ -1,3 +1,4 @@
+using Game.Client.Debugging;
 using Game.Client.Presentation.Camera;
 using Game.Client.UI;
 using Game.Content;
@@ -42,6 +43,8 @@ public sealed class WorldRenderer
     private SpriteFont? _font;
     private UiPainter? _uiPainter;
     private UiThemeColors? _theme;
+    private GridTextureCache? _gridTextureCache;
+    private readonly DebugOverlay _debugOverlay = new();
 
     public WorldRenderer(GraphicsDevice graphicsDevice, ContentManager content, GameContentBundle bundle)
     {
@@ -84,7 +87,16 @@ public sealed class WorldRenderer
         catch (Microsoft.Xna.Framework.Content.ContentLoadException)
         {
             _font = CreateFallbackFont();
+            DebugLog.Issue("Arial spritefont failed to load; using programmatic fallback font.");
         }
+
+        _gridTextureCache = new GridTextureCache(
+            _graphicsDevice,
+            _biomeColors,
+            _terrainColors,
+            _unseenColor,
+            _exploredDimColor,
+            _hazardTravelColor);
 
         _uiPainter = new UiPainter(_spriteBatch, _pixel, _font);
     }
@@ -96,12 +108,13 @@ public sealed class WorldRenderer
         ContextMenuController menu,
         UiManager? uiManager,
         int mouseX,
-        int mouseY)
+        int mouseY,
+        DebugFrameStats? debugStats = null)
     {
         _graphicsDevice.Clear(new Color(0x1A, 0x1A, 0x2E));
-        _spriteBatch.Begin();
+        _spriteBatch.Begin(samplerState: SamplerState.PointClamp);
 
-        DrawWorld(snapshot, camera, selection);
+        int drawRects = DrawWorld(snapshot, camera, selection, debugStats);
 
         if (_font is not null)
         {
@@ -130,10 +143,26 @@ public sealed class WorldRenderer
             DrawMenu(_uiPainter, _theme, menu, mouseX, mouseY);
         }
 
+        if (debugStats is not null && _font is not null)
+        {
+            debugStats.DrawRects = drawRects;
+            _debugOverlay.Draw(
+                _spriteBatch,
+                _font,
+                debugStats,
+                snapshot,
+                _graphicsDevice.Viewport.Width,
+                _graphicsDevice.Viewport.Height);
+        }
+
         _spriteBatch.End();
     }
 
-    private void DrawWorld(RenderSnapshot snapshot, CameraController camera, SelectionState selection)
+    private int DrawWorld(
+        RenderSnapshot snapshot,
+        CameraController camera,
+        SelectionState selection,
+        DebugFrameStats? debugStats)
     {
         float cellSize = camera.CellSize;
         var viewport = _graphicsDevice.Viewport;
@@ -143,58 +172,50 @@ public sealed class WorldRenderer
         int maxGridX = Math.Min(snapshot.GridWidth - 1, (int)Math.Ceiling(camera.ScreenToWorld(new Vector2(viewport.Width, viewport.Height)).X));
         int maxGridY = Math.Min(snapshot.GridHeight - 1, (int)Math.Ceiling(camera.ScreenToWorld(new Vector2(viewport.Width, viewport.Height)).Y));
 
+        int visibleCells = Math.Max(0, maxGridX - minGridX + 1) * Math.Max(0, maxGridY - minGridY + 1);
+        if (debugStats is not null)
+        {
+            debugStats.VisibleCells = visibleCells;
+        }
+
         int cellPixel = Math.Max(1, (int)cellSize - 1);
+        int drawRects = 0;
+
+        if (_gridTextureCache is not null)
+        {
+            Texture2D gridTexture = _gridTextureCache.GetOrBuild(snapshot);
+            Vector2 topLeft = camera.WorldToScreen(minGridX, minGridY);
+            float destWidth = (maxGridX - minGridX + 1) * cellSize;
+            float destHeight = (maxGridY - minGridY + 1) * cellSize;
+
+            var source = new Rectangle(minGridX, minGridY, maxGridX - minGridX + 1, maxGridY - minGridY + 1);
+            var destination = new Rectangle((int)topLeft.X, (int)topLeft.Y, (int)destWidth, (int)destHeight);
+            _spriteBatch.Draw(gridTexture, destination, source, Color.White);
+            drawRects++;
+        }
+
+        bool drawGeology = snapshot.ViewMode == GameViewMode.Overworld && cellPixel >= 4;
+        if (drawGeology)
+        {
+            drawRects += DrawOverworldGeology(snapshot, camera, cellPixel, minGridX, minGridY, maxGridX, maxGridY);
+        }
+
+        if (snapshot.ViewMode == GameViewMode.Overworld && cellPixel >= 8)
+        {
+            drawRects += DrawOverworldLandmarks(snapshot, camera, cellPixel, cellSize);
+        }
 
         for (int y = minGridY; y <= maxGridY; y++)
         {
             for (int x = minGridX; x <= maxGridX; x++)
             {
-                int index = y * snapshot.GridWidth + x;
-                ushort cellValue = snapshot.CellData[index];
-                Color color = snapshot.ViewMode == GameViewMode.Overworld
-                    ? SafeBiomeColor(cellValue)
-                    : SafeTerrainColor(cellValue);
-
-                if (snapshot.ViewMode == GameViewMode.LocalMap &&
-                    snapshot.VisibleTiles is not null &&
-                    snapshot.ExploredTiles is not null)
-                {
-                    if (!snapshot.ExploredTiles[index])
-                    {
-                        color = _unseenColor;
-                    }
-                    else if (!snapshot.VisibleTiles[index])
-                    {
-                        color = Color.Lerp(color, _exploredDimColor, 0.65f);
-                    }
-                }
-                else if (snapshot.ViewMode == GameViewMode.Overworld &&
-                         snapshot.ExploredTiles is not null &&
-                         !snapshot.ExploredTiles[index])
-                {
-                    color = _unseenColor;
-                }
-                else if (snapshot.ViewMode == GameViewMode.Overworld &&
-                         snapshot.HazardousTravelX == x &&
-                         snapshot.HazardousTravelY == y)
-                {
-                    color = Color.Lerp(color, _hazardTravelColor, 0.55f);
-                }
-
-                Vector2 screen = camera.WorldToScreen(x, y);
-                DrawRect((int)screen.X, (int)screen.Y, cellPixel, cellPixel, color);
-
                 if (snapshot.ViewMode == GameViewMode.LocalMap && MapBorderHelper.IsBorderTile(x, y))
                 {
+                    Vector2 screen = camera.WorldToScreen(x, y);
                     DrawRect((int)screen.X, (int)screen.Y, cellPixel, cellPixel, _borderShadeColor);
+                    drawRects++;
                 }
             }
-        }
-
-        if (snapshot.ViewMode == GameViewMode.Overworld)
-        {
-            DrawOverworldGeology(snapshot, camera, cellPixel, minGridX, minGridY, maxGridX, maxGridY);
-            DrawOverworldLandmarks(snapshot, camera, cellPixel, cellSize);
         }
 
         foreach (EntityRenderData entity in snapshot.Entities)
@@ -218,19 +239,24 @@ public sealed class WorldRenderer
 
             Vector2 entityScreen = camera.WorldToScreen(entity.X, entity.Y);
             DrawRect((int)entityScreen.X, (int)entityScreen.Y, cellPixel, cellPixel, entityColor);
+            drawRects++;
         }
 
         Vector2 playerScreen = camera.WorldToScreen(snapshot.PlayerX, snapshot.PlayerY);
         DrawRect((int)playerScreen.X, (int)playerScreen.Y, cellPixel, cellPixel, _playerColor);
+        drawRects++;
 
         if (selection.IsLocked && selection.ViewModeWhenLocked == snapshot.ViewMode)
         {
             Vector2 selScreen = camera.WorldToScreen(selection.TileX, selection.TileY);
             DrawBorder((int)selScreen.X, (int)selScreen.Y, (int)cellSize, (int)cellSize, _selectionColor, 2);
+            drawRects += 4;
         }
+
+        return drawRects;
     }
 
-    private void DrawOverworldGeology(
+    private int DrawOverworldGeology(
         RenderSnapshot snapshot,
         CameraController camera,
         int cellPixel,
@@ -240,6 +266,7 @@ public sealed class WorldRenderer
         int maxGridY)
     {
         int lineThickness = Math.Max(1, cellPixel / 4);
+        int drawRects = 0;
 
         for (int y = minGridY; y <= maxGridY; y++)
         {
@@ -261,54 +288,65 @@ public sealed class WorldRenderer
                     if (boundaryColor.HasValue)
                     {
                         DrawBorder(screenX, screenY, cellPixel, cellPixel, boundaryColor.Value, lineThickness);
+                        drawRects += 4;
                     }
                 }
 
                 if (snapshot.RiverEdgeMask is not null && snapshot.RiverEdgeMask[index] != 0)
                 {
-                    DrawRiverEdges(screenX, screenY, cellPixel, snapshot.RiverEdgeMask[index], lineThickness);
+                    drawRects += DrawRiverEdges(screenX, screenY, cellPixel, snapshot.RiverEdgeMask[index], lineThickness);
                 }
             }
         }
+
+        return drawRects;
     }
 
     private static Color? BoundaryColor(byte boundaryType) => OverworldGeologyColors.ForBoundaryType(boundaryType);
 
-    private void DrawRiverEdges(int screenX, int screenY, int cellPixel, byte edgeMask, int thickness)
+    private int DrawRiverEdges(int screenX, int screenY, int cellPixel, byte edgeMask, int thickness)
     {
         const byte north = 1;
         const byte east = 2;
         const byte south = 4;
         const byte west = 8;
+        int drawRects = 0;
 
         if ((edgeMask & north) != 0)
         {
             DrawRect(screenX, screenY, cellPixel, thickness, OverworldGeologyColors.River);
+            drawRects++;
         }
 
         if ((edgeMask & east) != 0)
         {
             DrawRect(screenX + cellPixel - thickness, screenY, thickness, cellPixel, OverworldGeologyColors.River);
+            drawRects++;
         }
 
         if ((edgeMask & south) != 0)
         {
             DrawRect(screenX, screenY + cellPixel - thickness, cellPixel, thickness, OverworldGeologyColors.River);
+            drawRects++;
         }
 
         if ((edgeMask & west) != 0)
         {
             DrawRect(screenX, screenY, thickness, cellPixel, OverworldGeologyColors.River);
+            drawRects++;
         }
+
+        return drawRects;
     }
 
-    private void DrawOverworldLandmarks(RenderSnapshot snapshot, CameraController camera, int cellPixel, float cellSize)
+    private int DrawOverworldLandmarks(RenderSnapshot snapshot, CameraController camera, int cellPixel, float cellSize)
     {
         if (_font is null || snapshot.OverworldLandmarks is not { Length: > 0 })
         {
-            return;
+            return 0;
         }
 
+        int drawRects = 0;
         foreach (OverworldLandmarkView landmark in snapshot.OverworldLandmarks)
         {
             if (landmark.X < 0 || landmark.Y < 0 ||
@@ -329,6 +367,7 @@ public sealed class WorldRenderer
             int markerX = (int)screen.X + cellPixel / 2 - markerSize / 2;
             int markerY = (int)screen.Y + cellPixel / 2 - markerSize / 2;
             DrawRect(markerX, markerY, markerSize, markerSize, markerColor);
+            drawRects++;
 
             if (cellSize >= 8)
             {
@@ -344,16 +383,38 @@ public sealed class WorldRenderer
                 _spriteBatch.DrawString(_font, label, new Vector2(labelX, labelY), markerColor);
             }
         }
+
+        return drawRects;
     }
 
     private Color SafeBiomeColor(ushort value)
     {
-        return value < _biomeColors.Length ? _biomeColors[value] : Color.Magenta;
+        if (value >= _biomeColors.Length)
+        {
+            if (DebugMode.IsEnabled)
+            {
+                DebugLog.Issue($"Unknown biome color index: {value}");
+            }
+
+            return Color.Magenta;
+        }
+
+        return _biomeColors[value];
     }
 
     private Color SafeTerrainColor(ushort value)
     {
-        return value < _terrainColors.Length ? _terrainColors[value] : Color.Magenta;
+        if (value >= _terrainColors.Length)
+        {
+            if (DebugMode.IsEnabled)
+            {
+                DebugLog.Issue($"Unknown terrain color index: {value}");
+            }
+
+            return Color.Magenta;
+        }
+
+        return _terrainColors[value];
     }
 
     private SpriteFont CreateFallbackFont()

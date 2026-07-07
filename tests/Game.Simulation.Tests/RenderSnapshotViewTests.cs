@@ -38,7 +38,7 @@ public sealed class RenderSnapshotViewTests
     }
 
     [Fact]
-    public void RefreshLiveViews_updates_energy_without_rebuilding_grid()
+    public void CachedSnapshot_reuses_grid_until_render_dirty()
     {
         SimulationHost host = CreateHost();
         host.Initialize();
@@ -47,10 +47,16 @@ public sealed class RenderSnapshotViewTests
         host.Session.PlayerTurnState.Energy = 42;
         host.Session.ClearRenderDirty();
 
-        RenderSnapshot refreshed = host.BuildRenderSnapshot();
+        RenderSnapshot cached = host.BuildRenderSnapshot();
 
-        Assert.Same(first.CellData, refreshed.CellData);
-        Assert.Equal(42, refreshed.PlayerStatus.Energy);
+        Assert.Same(first.CellData, cached.CellData);
+        Assert.Equal(first.PlayerStatus.Energy, cached.PlayerStatus.Energy);
+
+        host.Session.MarkRenderDirty();
+        RenderSnapshot rebuilt = host.BuildRenderSnapshot();
+
+        Assert.Same(first.CellData, rebuilt.CellData);
+        Assert.Equal(42, rebuilt.PlayerStatus.Energy);
     }
 
     private static SimulationHost CreateHost()

@@ -1,4 +1,6 @@
+using Game.Client.Debugging;
 using Game.Client.Input;
+using System.Diagnostics;
 using Game.Client.Presentation;
 using Game.Client.Presentation.Camera;
 using Game.Client.UI;
@@ -30,6 +32,11 @@ public sealed class BlueHarvestGame : Microsoft.Xna.Framework.Game
     private bool _cameraCentered;
     private int _lastPlayerX = -1;
     private int _lastPlayerY = -1;
+    private readonly DebugFrameStats _debugStats = new();
+    private readonly Stopwatch _frameStopwatch = new();
+    private int _hoverGridX = -1;
+    private int _hoverGridY = -1;
+    private GameViewMode _hoverViewMode = GameViewMode.Overworld;
 
     public BlueHarvestGame()
     {
@@ -45,6 +52,8 @@ public sealed class BlueHarvestGame : Microsoft.Xna.Framework.Game
 
         _content = GameBootstrap.LoadContent();
         _saveManager = GameBootstrap.CreateSaveManager();
+        DebugLog.Initialize(_saveManager.SaveDirectory);
+        DebugContentValidator.Validate(_content);
         _simulation = GameBootstrap.CreateSimulationHost(_content, _saveManager.SaveDirectory);
         _inputMapper = new InputMapper(_content.Controls);
         _camera = new CameraController(_content.Camera);
@@ -67,8 +76,17 @@ public sealed class BlueHarvestGame : Microsoft.Xna.Framework.Game
 
     protected override void Update(GameTime gameTime)
     {
+        _debugStats.BeginFrame();
+        _frameStopwatch.Restart();
+
         float deltaSeconds = (float)gameTime.ElapsedGameTime.TotalSeconds;
         InputFrame frame = _inputMapper.Sample();
+
+        if (frame.Pressed.Contains(InputAction.ToggleDebug))
+        {
+            DebugMode.Toggle();
+            DebugLog.Info(DebugMode.IsEnabled ? "Debug mode enabled." : "Debug mode disabled.");
+        }
 
         if (!_cameraCentered)
         {
@@ -99,6 +117,10 @@ public sealed class BlueHarvestGame : Microsoft.Xna.Framework.Game
         }
 
         _snapshot = _simulation.BuildRenderSnapshot();
+        if (_simulation.LastSnapshotRebuilt)
+        {
+            _debugStats.NotifySnapshotRebuild();
+        }
 
         if (_snapshot.PlayerX != _lastPlayerX || _snapshot.PlayerY != _lastPlayerY)
         {
@@ -108,30 +130,46 @@ public sealed class BlueHarvestGame : Microsoft.Xna.Framework.Game
         }
 
         base.Update(gameTime);
+
+        _debugStats.UpdateMs = _frameStopwatch.Elapsed.TotalMilliseconds;
+        _debugStats.EndFrame(deltaSeconds);
     }
 
     private void UpdateHoverTooltip(InputFrame frame)
     {
         if (_menu.IsOpen || _uiManager.ShouldBlockSimulation)
         {
-            _simulation.HoverTooltip = null;
+            ClearHoverTooltip();
             return;
         }
 
         if (_uiManager.ContainsHudPoint(frame.MouseX, frame.MouseY, GraphicsDevice.Viewport.Width, GraphicsDevice.Viewport.Height))
         {
-            _simulation.HoverTooltip = null;
+            ClearHoverTooltip();
             return;
         }
 
         if (GridPicker.TryScreenToGrid(_camera, frame.MouseX, frame.MouseY, _snapshot.GridWidth, _snapshot.GridHeight, out int gx, out int gy))
         {
-            _simulation.HoverTooltip = _simulation.Session.InspectTile(gx, gy);
+            if (gx != _hoverGridX || gy != _hoverGridY || _snapshot.ViewMode != _hoverViewMode)
+            {
+                _hoverGridX = gx;
+                _hoverGridY = gy;
+                _hoverViewMode = _snapshot.ViewMode;
+                _simulation.HoverTooltip = _simulation.Session.InspectTile(gx, gy);
+            }
         }
         else
         {
-            _simulation.HoverTooltip = null;
+            ClearHoverTooltip();
         }
+    }
+
+    private void ClearHoverTooltip()
+    {
+        _hoverGridX = -1;
+        _hoverGridY = -1;
+        _simulation.HoverTooltip = null;
     }
 
     private void HandleMenuAndSelection(InputFrame frame, out bool menuClosedThisFrame)
@@ -283,8 +321,12 @@ public sealed class BlueHarvestGame : Microsoft.Xna.Framework.Game
 
     protected override void Draw(GameTime gameTime)
     {
+        _frameStopwatch.Restart();
+
         var mouse = Microsoft.Xna.Framework.Input.Mouse.GetState();
-        _renderer.Draw(_snapshot, _camera, _selection, _menu, _uiManager, mouse.X, mouse.Y);
+        _renderer.Draw(_snapshot, _camera, _selection, _menu, _uiManager, mouse.X, mouse.Y, _debugStats);
+
+        _debugStats.DrawMs = _frameStopwatch.Elapsed.TotalMilliseconds;
         base.Draw(gameTime);
     }
 }

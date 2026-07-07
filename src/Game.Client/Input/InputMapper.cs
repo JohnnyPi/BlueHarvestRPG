@@ -15,6 +15,14 @@ public sealed class InputFrame
 {
     public HashSet<InputAction> Held { get; } = [];
     public HashSet<InputAction> Pressed { get; } = [];
+
+    public void Clear()
+    {
+        Held.Clear();
+        Pressed.Clear();
+        WheelDelta = 0;
+    }
+
     public int WheelDelta { get; set; }
     public int MouseX { get; set; }
     public int MouseY { get; set; }
@@ -28,6 +36,7 @@ public sealed class InputMapper
 
     private KeyboardState _previousKeyboard;
     private MouseState _previousMouse;
+    private readonly InputFrame _frame = new();
 
     public InputMapper(ControlsDefinition controls, IInputSource? inputSource = null)
     {
@@ -57,12 +66,10 @@ public sealed class InputMapper
         KeyboardState keyboard = _inputSource.GetKeyboardState();
         MouseState mouse = _inputSource.GetMouseState();
 
-        var frame = new InputFrame
-        {
-            WheelDelta = mouse.ScrollWheelValue - _previousMouse.ScrollWheelValue,
-            MouseX = mouse.X,
-            MouseY = mouse.Y,
-        };
+        _frame.Clear();
+        _frame.WheelDelta = mouse.ScrollWheelValue - _previousMouse.ScrollWheelValue;
+        _frame.MouseX = mouse.X;
+        _frame.MouseY = mouse.Y;
 
         foreach ((InputAction action, List<Keys> keys) in _keyBindings)
         {
@@ -70,12 +77,12 @@ public sealed class InputMapper
             {
                 if (keyboard.IsKeyDown(key))
                 {
-                    frame.Held.Add(action);
+                    _frame.Held.Add(action);
                 }
 
                 if (keyboard.IsKeyDown(key) && _previousKeyboard.IsKeyUp(key))
                 {
-                    frame.Pressed.Add(action);
+                    _frame.Pressed.Add(action);
                 }
             }
         }
@@ -86,19 +93,19 @@ public sealed class InputMapper
             {
                 if (IsMouseDown(mouse, button))
                 {
-                    frame.Held.Add(action);
+                    _frame.Held.Add(action);
                 }
 
                 if (IsMouseDown(mouse, button) && !IsMouseDown(_previousMouse, button))
                 {
-                    frame.Pressed.Add(action);
+                    _frame.Pressed.Add(action);
                 }
             }
         }
 
         _previousKeyboard = keyboard;
         _previousMouse = mouse;
-        return frame;
+        return _frame;
     }
 
     private static bool IsMouseDown(MouseState state, MouseButton button)

@@ -27,6 +27,30 @@ public sealed class MessageLog
 
     public string[] Recent(int count)
     {
-        return _messages.Reverse().Take(count).Reverse().ToArray();
+        if (_messages.Count == 0 || count <= 0)
+        {
+            return [];
+        }
+
+        int take = Math.Min(count, _messages.Count);
+        var result = new string[take];
+        int start = _messages.Count - take;
+        int i = 0;
+        foreach (string message in _messages)
+        {
+            if (start > 0)
+            {
+                start--;
+                continue;
+            }
+
+            result[i++] = message;
+            if (i >= take)
+            {
+                break;
+            }
+        }
+
+        return result;
     }
 }

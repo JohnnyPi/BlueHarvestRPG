@@ -45,3 +45,5 @@
     keyboard: [U]
   RecenterCamera:
     keyboard: [Home, C]
+  ToggleDebug:
+    keyboard: [F3]

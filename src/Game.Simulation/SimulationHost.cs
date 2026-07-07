@@ -39,6 +39,10 @@ public sealed class SimulationHost
 
     public string? HoverTooltip { get; set; }
 
+    public bool LastSnapshotRebuilt { get; private set; }
+
+    private string? _cachedHoverTooltip;
+
     public bool IsWaitingForPlayerInput =>
         Session.CanIssuePlayerCommand();
 
@@ -375,46 +379,27 @@ public sealed class SimulationHost
 
     public RenderSnapshot BuildRenderSnapshot()
     {
+        LastSnapshotRebuilt = false;
+
         if (!Session.RenderDirty && _cachedSnapshot is not null)
         {
-            return RefreshLiveViews(_cachedSnapshot);
+            if (!string.Equals(_cachedHoverTooltip, HoverTooltip, StringComparison.Ordinal))
+            {
+                _cachedHoverTooltip = HoverTooltip;
+                _cachedSnapshot = _cachedSnapshot with { HoverTooltip = HoverTooltip };
+            }
+
+            return _cachedSnapshot;
         }
 
         _cachedSnapshot = Session.ViewMode == GameViewMode.Overworld
             ? BuildOverworldSnapshot()
             : BuildLocalMapSnapshot();
 
+        _cachedHoverTooltip = HoverTooltip;
         Session.ClearRenderDirty();
+        LastSnapshotRebuilt = true;
         return _cachedSnapshot;
-    }
-
-    private RenderSnapshot RefreshLiveViews(RenderSnapshot cached)
-    {
-        string terrainOrBiome = ResolveTerrainOrBiome(cached.ViewMode);
-        return cached with
-        {
-            PlayerStatus = BuildPlayerStatus(cached.ViewMode, terrainOrBiome),
-            InventoryItems = BuildInventoryItems(),
-            QuestItems = BuildQuestItems(),
-            CharacterSheet = BuildCharacterSheet(),
-            MessageLog = Session.MessageLog.Recent(8),
-            HoverTooltip = HoverTooltip,
-            PlayerEnergy = Session.PlayerTurnState.Energy,
-            WaitingForPlayerInput = IsWaitingForPlayerInput,
-            ScenarioMission = Session.RunScenario?.Mission,
-            IslandPressure = Session.PressureClock.Pressure,
-            OverworldLandmarks = cached.ViewMode == GameViewMode.Overworld
-                ? BuildOverworldLandmarks()
-                : cached.OverworldLandmarks,
-            TravelStaminaPenalty = Session.PressureState.TravelStaminaPenalty,
-            EvacHoursRemaining = Session.PressureState.EvacHoursRemaining,
-            HazardousTravelX = Session.PressureState.HazardousTravelCell?.X,
-            HazardousTravelY = Session.PressureState.HazardousTravelCell?.Y,
-            RunOutcome = Session.Outcome,
-            EscapeEnding = Session.EscapeEnding,
-            RunEndTitle = Session.RunEndTitle,
-            RunEndSummary = Session.RunEndSummary
-        };
     }
 
     private string ResolveTerrainOrBiome(GameViewMode viewMode)

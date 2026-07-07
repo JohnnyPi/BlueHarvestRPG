@@ -27,4 +27,5 @@ public enum InputAction
     OpenPauseMenu,
     OpenInventory,
     OpenCharacterSheet,
+    ToggleDebug,
 }
