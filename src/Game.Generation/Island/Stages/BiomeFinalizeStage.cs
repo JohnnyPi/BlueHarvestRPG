@@ -11,7 +11,7 @@ public static class BiomeFinalizeStage
 
     public static void Execute(IslandPlan plan, ulong seed)
     {
-        BiomeBalanceHelper.StampVisitorCenterPlains(plan);
+        BiomeBalanceHelper.StampFacilityBiomes(plan);
 
         ulong stageSeed = SeedUtility.DeriveStage(seed, StageSalt);
         var random = new DeterministicRandom(stageSeed);
@@ -35,5 +35,7 @@ public static class BiomeFinalizeStage
                 break;
             }
         }
+
+        BiomeBalanceHelper.StampFacilityBiomes(plan);
     }
 }

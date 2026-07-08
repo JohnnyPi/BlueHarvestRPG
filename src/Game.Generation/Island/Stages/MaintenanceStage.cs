@@ -1,4 +1,5 @@
 using Game.Content.Definitions;
+using Game.Generation.Island.Stages;
 using Game.Generation.Noise;
 using Game.Simulation.Coordinates;
 using Game.Simulation.Seeds;
@@ -13,7 +14,6 @@ public static class MaintenanceStage
     public static void Execute(IslandPlan plan, IslandDefinition config, ulong seed)
     {
         ulong stageSeed = SeedUtility.DeriveStage(seed, StageSalt);
-        var random = new DeterministicRandom(stageSeed);
 
         var candidates = new List<WorldCoord>();
 
@@ -40,6 +40,11 @@ public static class MaintenanceStage
                     continue;
                 }
 
+                if (!plan.RoadGraph.IsAdjacentToRoad(coord))
+                {
+                    continue;
+                }
+
                 if (!candidates.Contains(coord))
                 {
                     candidates.Add(coord);
@@ -56,7 +61,8 @@ public static class MaintenanceStage
                 if (plan.Contains(x, y) && plan.IsLand(x, y))
                 {
                     var coord = new WorldCoord(x, y);
-                    if (plan.GetCell(coord).Role == IslandCellRole.None)
+                    if (plan.GetCell(coord).Role == IslandCellRole.None &&
+                        plan.RoadGraph.IsAdjacentToRoad(coord))
                     {
                         candidates.Add(coord);
                     }
@@ -71,11 +77,43 @@ public static class MaintenanceStage
 
         if (maintenanceCells.Count < config.MaintenanceAreaCount)
         {
-            maintenanceCells = IslandPlacementHelper.SampleLandCells(
-                plan,
-                cell => cell.Role is IslandCellRole.None or IslandCellRole.Coast,
+            var roadAdjacent = new List<WorldCoord>();
+            for (int y = 0; y < plan.Height; y++)
+            {
+                for (int x = 0; x < plan.Width; x++)
+                {
+                    var coord = new WorldCoord(x, y);
+                    if (!plan.IsLand(x, y))
+                    {
+                        continue;
+                    }
+
+                    ref IslandCellData cell = ref plan.GetCell(x, y);
+                    if (cell.Role is not (IslandCellRole.None or IslandCellRole.Coast))
+                    {
+                        continue;
+                    }
+
+                    if (plan.RoadGraph.IsAdjacentToRoad(coord))
+                    {
+                        roadAdjacent.Add(coord);
+                    }
+                }
+            }
+
+            maintenanceCells = IslandPlacementHelper.PickSpreadCells(
+                roadAdjacent,
                 config.MaintenanceAreaCount,
                 stageSeed ^ 0xA11CEUL);
+
+            if (maintenanceCells.Count < config.MaintenanceAreaCount)
+            {
+                maintenanceCells = IslandPlacementHelper.SampleLandCells(
+                    plan,
+                    cell => cell.Role is IslandCellRole.None or IslandCellRole.Coast,
+                    config.MaintenanceAreaCount,
+                    stageSeed ^ 0xA11CEUL);
+            }
         }
 
         foreach (WorldCoord cell in maintenanceCells)
@@ -88,6 +126,7 @@ public static class MaintenanceStage
                 gy,
                 12,
                 10));
+            RoadNetworkStage.AddStructureSpur(plan, cell, config);
         }
     }
 }

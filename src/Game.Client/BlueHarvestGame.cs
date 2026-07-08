@@ -122,6 +122,8 @@ public sealed class BlueHarvestGame : Microsoft.Xna.Framework.Game
             _debugStats.NotifySnapshotRebuild();
         }
 
+        _renderer.UpdatePlayerAnimation(deltaSeconds, _snapshot);
+
         if (_snapshot.PlayerX != _lastPlayerX || _snapshot.PlayerY != _lastPlayerY)
         {
             _camera.CenterOn(_snapshot.PlayerX, _snapshot.PlayerY, GraphicsDevice.Viewport.Width, GraphicsDevice.Viewport.Height);

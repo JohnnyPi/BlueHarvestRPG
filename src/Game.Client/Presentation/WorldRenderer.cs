@@ -44,6 +44,9 @@ public sealed class WorldRenderer
     private UiPainter? _uiPainter;
     private UiThemeColors? _theme;
     private GridTextureCache? _gridTextureCache;
+    private TileTextureCatalog? _tileTextures;
+    private PlayerSpriteRenderer? _playerSprite;
+    private PlayerSpriteAnimator? _playerAnimator;
     private readonly DebugOverlay _debugOverlay = new();
 
     public WorldRenderer(GraphicsDevice graphicsDevice, ContentManager content, GameContentBundle bundle)
@@ -98,7 +101,16 @@ public sealed class WorldRenderer
             _exploredDimColor,
             _hazardTravelColor);
 
+        _tileTextures = new TileTextureCatalog(_content, _bundle.Tiles);
+        _playerSprite = new PlayerSpriteRenderer(_content, _bundle.Player);
+        _playerAnimator = new PlayerSpriteAnimator(_playerSprite, _bundle.Player);
+
         _uiPainter = new UiPainter(_spriteBatch, _pixel, _font);
+    }
+
+    public void UpdatePlayerAnimation(float deltaSeconds, RenderSnapshot snapshot)
+    {
+        _playerAnimator?.Update(deltaSeconds, snapshot);
     }
 
     public void Draw(
@@ -178,10 +190,21 @@ public sealed class WorldRenderer
             debugStats.VisibleCells = visibleCells;
         }
 
-        int cellPixel = Math.Max(1, (int)cellSize - 1);
+        int tileSize = Math.Max(1, (int)Math.Round(cellSize));
         int drawRects = 0;
 
-        if (_gridTextureCache is not null)
+        if (_tileTextures is not null && _tileTextures.SupportsView(snapshot.ViewMode))
+        {
+            drawRects += DrawGridTiles(
+                snapshot,
+                camera,
+                minGridX,
+                minGridY,
+                maxGridX,
+                maxGridY,
+                tileSize);
+        }
+        else if (_gridTextureCache is not null)
         {
             Texture2D gridTexture = _gridTextureCache.GetOrBuild(snapshot);
             Vector2 topLeft = camera.WorldToScreen(minGridX, minGridY);
@@ -194,15 +217,15 @@ public sealed class WorldRenderer
             drawRects++;
         }
 
-        bool drawGeology = snapshot.ViewMode == GameViewMode.Overworld && cellPixel >= 4;
+        bool drawGeology = snapshot.ViewMode == GameViewMode.Overworld && tileSize >= 4;
         if (drawGeology)
         {
-            drawRects += DrawOverworldGeology(snapshot, camera, cellPixel, minGridX, minGridY, maxGridX, maxGridY);
+            drawRects += DrawOverworldGeology(snapshot, camera, tileSize, minGridX, minGridY, maxGridX, maxGridY);
         }
 
-        if (snapshot.ViewMode == GameViewMode.Overworld && cellPixel >= 8)
+        if (snapshot.ViewMode == GameViewMode.Overworld && tileSize >= 8)
         {
-            drawRects += DrawOverworldLandmarks(snapshot, camera, cellPixel, cellSize);
+            drawRects += DrawOverworldLandmarks(snapshot, camera, tileSize, cellSize);
         }
 
         for (int y = minGridY; y <= maxGridY; y++)
@@ -212,7 +235,7 @@ public sealed class WorldRenderer
                 if (snapshot.ViewMode == GameViewMode.LocalMap && MapBorderHelper.IsBorderTile(x, y))
                 {
                     Vector2 screen = camera.WorldToScreen(x, y);
-                    DrawRect((int)screen.X, (int)screen.Y, cellPixel, cellPixel, _borderShadeColor);
+                    DrawRect((int)screen.X, (int)screen.Y, tileSize, tileSize, _borderShadeColor);
                     drawRects++;
                 }
             }
@@ -238,19 +261,96 @@ public sealed class WorldRenderer
             };
 
             Vector2 entityScreen = camera.WorldToScreen(entity.X, entity.Y);
-            DrawRect((int)entityScreen.X, (int)entityScreen.Y, cellPixel, cellPixel, entityColor);
+            DrawRect((int)entityScreen.X, (int)entityScreen.Y, tileSize, tileSize, entityColor);
             drawRects++;
         }
 
         Vector2 playerScreen = camera.WorldToScreen(snapshot.PlayerX, snapshot.PlayerY);
-        DrawRect((int)playerScreen.X, (int)playerScreen.Y, cellPixel, cellPixel, _playerColor);
-        drawRects++;
+        if (_playerSprite is not null && _playerAnimator is not null && _playerSprite.HasTexture)
+        {
+            PlayerSpriteFrame frame = _playerAnimator.GetCurrentFrame();
+            int destX = (int)Math.Round(playerScreen.X);
+            int destY = (int)Math.Round(playerScreen.Y);
+            var destination = new Rectangle(destX, destY, tileSize, tileSize);
+            _spriteBatch.Draw(frame.Texture, destination, frame.SourceRect, Color.White);
+            drawRects++;
+        }
+        else
+        {
+            DrawRect((int)playerScreen.X, (int)playerScreen.Y, tileSize, tileSize, _playerColor);
+            drawRects++;
+        }
 
         if (selection.IsLocked && selection.ViewModeWhenLocked == snapshot.ViewMode)
         {
             Vector2 selScreen = camera.WorldToScreen(selection.TileX, selection.TileY);
-            DrawBorder((int)selScreen.X, (int)selScreen.Y, (int)cellSize, (int)cellSize, _selectionColor, 2);
+            DrawBorder((int)selScreen.X, (int)selScreen.Y, tileSize, tileSize, _selectionColor, 2);
             drawRects += 4;
+        }
+
+        return drawRects;
+    }
+
+    private int DrawGridTiles(
+        RenderSnapshot snapshot,
+        CameraController camera,
+        int minGridX,
+        int minGridY,
+        int maxGridX,
+        int maxGridY,
+        int tilePixel)
+    {
+        int drawRects = 0;
+
+        for (int y = minGridY; y <= maxGridY; y++)
+        {
+            for (int x = minGridX; x <= maxGridX; x++)
+            {
+                int index = y * snapshot.GridWidth + x;
+                ushort cellValue = snapshot.CellData[index];
+                Texture2D? texture = snapshot.ViewMode == GameViewMode.Overworld
+                    ? _tileTextures!.GetBiome((BiomeId)cellValue)
+                    : _tileTextures!.GetTerrain((SimTerrain)cellValue);
+
+                Color tint = CellVisibilityTint.Resolve(
+                    snapshot,
+                    x,
+                    y,
+                    index,
+                    Color.White,
+                    _unseenColor,
+                    _exploredDimColor,
+                    _hazardTravelColor);
+
+                Vector2 screen = camera.WorldToScreen(x, y);
+                int screenX = (int)Math.Round(screen.X);
+                int screenY = (int)Math.Round(screen.Y);
+
+                if (texture is not null)
+                {
+                    _spriteBatch.Draw(
+                        texture,
+                        new Rectangle(screenX, screenY, tilePixel, tilePixel),
+                        tint);
+                    drawRects++;
+                    continue;
+                }
+
+                Color fallback = snapshot.ViewMode == GameViewMode.Overworld
+                    ? SafeBiomeColor(cellValue)
+                    : SafeTerrainColor(cellValue);
+                fallback = CellVisibilityTint.Resolve(
+                    snapshot,
+                    x,
+                    y,
+                    index,
+                    fallback,
+                    _unseenColor,
+                    _exploredDimColor,
+                    _hazardTravelColor);
+                DrawRect(screenX, screenY, tilePixel, tilePixel, fallback);
+                drawRects++;
+            }
         }
 
         return drawRects;
@@ -273,7 +373,7 @@ public sealed class WorldRenderer
             for (int x = minGridX; x <= maxGridX; x++)
             {
                 int index = y * snapshot.GridWidth + x;
-                if (snapshot.ExploredTiles is not null && !snapshot.ExploredTiles[index])
+                if (CellVisibilityTint.IsUnseen(snapshot, index))
                 {
                     continue;
                 }
@@ -287,14 +387,22 @@ public sealed class WorldRenderer
                     Color? boundaryColor = BoundaryColor(snapshot.TectonicBoundaries[index]);
                     if (boundaryColor.HasValue)
                     {
-                        DrawBorder(screenX, screenY, cellPixel, cellPixel, boundaryColor.Value, lineThickness);
+                        Color drawColor = CellVisibilityTint.ApplyFog(snapshot, index, boundaryColor.Value, _exploredDimColor);
+                        DrawBorder(screenX, screenY, cellPixel, cellPixel, drawColor, lineThickness);
                         drawRects += 4;
                     }
                 }
 
                 if (snapshot.RiverEdgeMask is not null && snapshot.RiverEdgeMask[index] != 0)
                 {
-                    drawRects += DrawRiverEdges(screenX, screenY, cellPixel, snapshot.RiverEdgeMask[index], lineThickness);
+                    drawRects += DrawRiverEdges(
+                        screenX,
+                        screenY,
+                        cellPixel,
+                        snapshot.RiverEdgeMask[index],
+                        lineThickness,
+                        snapshot,
+                        index);
                 }
             }
         }
@@ -304,8 +412,16 @@ public sealed class WorldRenderer
 
     private static Color? BoundaryColor(byte boundaryType) => OverworldGeologyColors.ForBoundaryType(boundaryType);
 
-    private int DrawRiverEdges(int screenX, int screenY, int cellPixel, byte edgeMask, int thickness)
+    private int DrawRiverEdges(
+        int screenX,
+        int screenY,
+        int cellPixel,
+        byte edgeMask,
+        int thickness,
+        RenderSnapshot snapshot,
+        int index)
     {
+        Color riverColor = CellVisibilityTint.ApplyFog(snapshot, index, OverworldGeologyColors.River, _exploredDimColor);
         const byte north = 1;
         const byte east = 2;
         const byte south = 4;
@@ -314,25 +430,25 @@ public sealed class WorldRenderer
 
         if ((edgeMask & north) != 0)
         {
-            DrawRect(screenX, screenY, cellPixel, thickness, OverworldGeologyColors.River);
+            DrawRect(screenX, screenY, cellPixel, thickness, riverColor);
             drawRects++;
         }
 
         if ((edgeMask & east) != 0)
         {
-            DrawRect(screenX + cellPixel - thickness, screenY, thickness, cellPixel, OverworldGeologyColors.River);
+            DrawRect(screenX + cellPixel - thickness, screenY, thickness, cellPixel, riverColor);
             drawRects++;
         }
 
         if ((edgeMask & south) != 0)
         {
-            DrawRect(screenX, screenY + cellPixel - thickness, cellPixel, thickness, OverworldGeologyColors.River);
+            DrawRect(screenX, screenY + cellPixel - thickness, cellPixel, thickness, riverColor);
             drawRects++;
         }
 
         if ((edgeMask & west) != 0)
         {
-            DrawRect(screenX, screenY, thickness, cellPixel, OverworldGeologyColors.River);
+            DrawRect(screenX, screenY, thickness, cellPixel, riverColor);
             drawRects++;
         }
 
@@ -355,6 +471,12 @@ public sealed class WorldRenderer
                 continue;
             }
 
+            int index = landmark.Y * snapshot.GridWidth + landmark.X;
+            if (CellVisibilityTint.IsUnseen(snapshot, index))
+            {
+                continue;
+            }
+
             Vector2 screen = camera.WorldToScreen(landmark.X, landmark.Y);
             Color markerColor = landmark.ObjectiveKind switch
             {
@@ -362,26 +484,13 @@ public sealed class WorldRenderer
                 OverworldLandmarkObjectiveKind.Mystery => _mysteryLandmarkColor,
                 _ => _landmarkColor
             };
+            markerColor = CellVisibilityTint.ApplyFog(snapshot, index, markerColor, _exploredDimColor);
 
             int markerSize = Math.Max(2, cellPixel / 2);
             int markerX = (int)screen.X + cellPixel / 2 - markerSize / 2;
             int markerY = (int)screen.Y + cellPixel / 2 - markerSize / 2;
             DrawRect(markerX, markerY, markerSize, markerSize, markerColor);
             drawRects++;
-
-            if (cellSize >= 8)
-            {
-                string label = landmark.ObjectiveKind switch
-                {
-                    OverworldLandmarkObjectiveKind.Escape => $"[{landmark.Name}]",
-                    OverworldLandmarkObjectiveKind.Mystery => $"?{landmark.Name}",
-                    _ => landmark.Name
-                };
-
-                int labelX = (int)screen.X + cellPixel + 1;
-                int labelY = (int)screen.Y - 2;
-                _spriteBatch.DrawString(_font, label, new Vector2(labelX, labelY), markerColor);
-            }
         }
 
         return drawRects;

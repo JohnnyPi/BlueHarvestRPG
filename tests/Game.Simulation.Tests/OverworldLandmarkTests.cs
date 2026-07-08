@@ -78,8 +78,7 @@ public class OverworldLandmarkTests
 
         Assert.True(OverworldLandmarkCatalog.TryResolveEntryPoint(plan, visitor, preview, out LocalCoord entry));
         Assert.True(preview.Contains(entry));
-        Assert.True(
-            preview.Terrain[preview.GetIndex(entry.X, entry.Y)] is TerrainId.Door or TerrainId.Floor or TerrainId.Concrete);
+        Assert.False(preview.BlocksMovement(entry));
     }
 
     private static SimulationHost CreateHost()

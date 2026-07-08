@@ -41,6 +41,7 @@ public sealed class GameSession
         CharacterProgress = characterProgress ?? new CharacterProgress();
         StartScenarioQuests();
         RevealOverworldAroundPlayer();
+        UpdateVisibility();
     }
 
     private void StartScenarioQuests()
@@ -203,6 +204,15 @@ public sealed class GameSession
     public GameViewMode ViewMode { get; set; }
     public WorldCoord PlayerWorldPosition { get; set; }
     public LocalCoord PlayerLocalPosition { get; set; }
+    public Direction PlayerFacing { get; set; } = Direction.South;
+
+    public void UpdateFacingFromDelta(int deltaX, int deltaY)
+    {
+        if (DirectionResolver.TryFromDelta(deltaX, deltaY, out Direction facing))
+        {
+            PlayerFacing = facing;
+        }
+    }
     public LocalMap? ActiveLocalMap { get; set; }
     public MapKey? SurfaceReturnKey { get; set; }
     public LocalCoord? SurfaceReturnPosition { get; set; }
@@ -286,6 +296,14 @@ public sealed class GameSession
         Entity? existing = ActiveLocalMap.Entities.GetById(EntityId.Player);
         if (existing is null)
         {
+            LocalCoord spawn = WalkabilityHelper.FindUnoccupiedWalkable(ActiveLocalMap, PlayerLocalPosition);
+            for (int attempt = 0; attempt < LocalMap.Width * LocalMap.Height && ActiveLocalMap.Entities.GetAt(spawn) is not null; attempt++)
+            {
+                spawn = new LocalCoord((spawn.X + 1) % LocalMap.Width, (spawn.Y + 1) % LocalMap.Height);
+                spawn = WalkabilityHelper.FindUnoccupiedWalkable(ActiveLocalMap, spawn);
+            }
+
+            PlayerLocalPosition = spawn;
             Entity player = EntityFactory.CreatePlayer(
                 PlayerWorldPosition,
                 PlayerLocalPosition,
@@ -335,7 +353,6 @@ public sealed class GameSession
 
         ClearMovement();
         ActiveLocalMap = LocalMapRepository.GetOrGenerateSurface(coordinate);
-        _entityRegistry.EnsureDefaultsSpawned(ActiveLocalMap);
 
         LocalCoord intended;
         if (entryPoint is not null)
@@ -352,7 +369,21 @@ public sealed class GameSession
             intended = new LocalCoord(LocalMap.Width / 2, LocalMap.Height / 2);
         }
 
-        PlayerLocalPosition = WalkabilityHelper.FindNearestWalkable(ActiveLocalMap, intended);
+        if (!WalkabilityHelper.TryFindNearestWalkable(ActiveLocalMap, intended, out LocalCoord landing))
+        {
+            IReadOnlyList<EdgeConnection> connections = Overworld.GetEdgeConnections(coordinate).ToArray();
+            LocalCoord? roadEntry = WalkabilityHelper.FindRoadCorridorEntry(ActiveLocalMap, connections);
+            if (roadEntry is not null)
+            {
+                landing = WalkabilityHelper.FindNearestWalkable(ActiveLocalMap, roadEntry.Value);
+            }
+            else
+            {
+                landing = WalkabilityHelper.FindNearestWalkable(ActiveLocalMap, intended);
+            }
+        }
+
+        PlayerLocalPosition = WalkabilityHelper.FindUnoccupiedWalkable(ActiveLocalMap, landing);
         ViewMode = GameViewMode.LocalMap;
 
         EnsurePlayerEntity();
@@ -377,6 +408,8 @@ public sealed class GameSession
 
         ActiveLocalMap = null;
         ViewMode = GameViewMode.Overworld;
+        MarkVisibilityDirty();
+        UpdateVisibility();
         MarkRenderDirty();
         ScenarioObjectiveTracker.Check(this);
     }
@@ -824,15 +857,32 @@ public sealed class GameSession
 
     public void UpdateVisibility()
     {
-        if (ViewMode != GameViewMode.LocalMap || ActiveLocalMap is null)
+        if (ViewMode == GameViewMode.LocalMap && ActiveLocalMap is not null)
+        {
+            EnsureVisibleBufferSize(ActiveLocalMap.Terrain.Length);
+            FovCalculator.Compute(ActiveLocalMap, PlayerLocalPosition, _visibleTiles);
+        }
+        else if (ViewMode == GameViewMode.Overworld)
+        {
+            EnsureVisibleBufferSize(Overworld.Width * Overworld.Height);
+            OverworldExploration.ComputeVisible(Overworld, PlayerWorldPosition, _visibleTiles);
+        }
+        else
         {
             VisibilityDirty = false;
             return;
         }
 
-        FovCalculator.Compute(ActiveLocalMap, PlayerLocalPosition, _visibleTiles);
         VisibilityDirty = false;
         MarkRenderDirty();
+    }
+
+    private void EnsureVisibleBufferSize(int size)
+    {
+        if (_visibleTiles.Length != size)
+        {
+            _visibleTiles = new bool[size];
+        }
     }
 
     public string InspectTile(int x, int y)
@@ -845,11 +895,9 @@ public sealed class GameSession
             }
 
             WorldCell cell = Overworld.GetCellValue(new WorldCoord(x, y));
-            string landmark = DescribeOverworldLandmark(x, y);
-            string landmarkText = landmark.Length > 0 ? $" landmark={landmark}" : string.Empty;
             string geologyText = DescribeOverworldGeology(x, y);
             string travelText = DescribeOverworldTravelCost(x, y);
-            return $"Overworld ({x}, {y}) biome={cell.Biome}{landmarkText}{geologyText}{travelText} elev={cell.Elevation:F2}";
+            return $"Overworld ({x}, {y}) biome={cell.Biome}{geologyText}{travelText} elev={cell.Elevation:F2}";
         }
 
         if (ActiveLocalMap is null || !ActiveLocalMap.Contains(new LocalCoord(x, y)))

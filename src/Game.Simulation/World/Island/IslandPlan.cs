@@ -31,6 +31,7 @@ public sealed class IslandPlan
     public List<RuinSite> RuinSites { get; } = [];
     public List<PlateBoundarySegment> PlateBoundaries { get; } = [];
     public List<VolcanicSite> VolcanicSites { get; } = [];
+    public FacilityRoadGraph RoadGraph { get; } = new();
 
     public int VisitorCenterRegionId { get; set; } = -1;
     public WorldCoord VisitorCenterCell { get; set; } = new(-1, -1);

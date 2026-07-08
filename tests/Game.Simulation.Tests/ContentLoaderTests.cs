@@ -23,6 +23,12 @@ public class ContentLoaderTests
         foreach (TerrainId terrain in Enum.GetValues<TerrainId>())
         {
             Assert.True(bundle.TerrainColors.Terrain.ContainsKey(terrain.ToString()));
+            Assert.True(bundle.Tiles.Terrain.ContainsKey(terrain.ToString()));
+        }
+
+        foreach (BiomeId biome in Enum.GetValues<BiomeId>())
+        {
+            Assert.True(bundle.Tiles.Biomes.ContainsKey(biome.ToString()));
         }
 
         Assert.NotEmpty(bundle.ContextMenus.Overworld);

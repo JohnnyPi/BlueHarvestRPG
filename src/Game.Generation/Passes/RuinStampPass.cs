@@ -40,9 +40,14 @@ public sealed class RuinStampPass : IGenerationPass
 
                     if (site.Kind == RuinKind.WarFortification)
                     {
-                        if (isPerimeter)
+                        bool isEntry = withinX == site.Width / 2 && withinY == site.Height - 1;
+                        if (isPerimeter && !isEntry)
                         {
                             m.SetTerrain(localX, localY, TerrainId.Wall, TileFlags.BlocksMovement | TileFlags.BlocksVision);
+                        }
+                        else if (isEntry)
+                        {
+                            m.SetTerrain(localX, localY, TerrainId.Door, TileFlags.None);
                         }
                         else
                         {
@@ -52,8 +57,9 @@ public sealed class RuinStampPass : IGenerationPass
                         return;
                     }
 
+                    bool isRuinEntry = withinX == site.Width / 2 && withinY == site.Height - 1;
                     bool broken = (withinX + withinY) % 3 == 0;
-                    if (isPerimeter && !broken)
+                    if (isPerimeter && !broken && !isRuinEntry)
                     {
                         m.SetTerrain(localX, localY, TerrainId.RuinStone, TileFlags.BlocksMovement);
                     }

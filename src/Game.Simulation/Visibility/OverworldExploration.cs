@@ -1,6 +1,5 @@
 using Game.Simulation.Coordinates;
 using Game.Simulation.World;
-using Game.Simulation.World.Island;
 
 namespace Game.Simulation.Visibility;
 
@@ -10,28 +9,34 @@ public static class OverworldExploration
 
     public static void InitializeTouristMap(Overworld overworld)
     {
-        if (overworld.IslandPlan is null)
-        {
-            RevealAround(overworld, new WorldCoord(overworld.Width / 2, overworld.Height / 2), RevealRadius);
-            return;
-        }
+        WorldCoord center = overworld.IslandPlan?.VisitorCenterCell is { X: >= 0 } visitor
+            ? visitor
+            : new WorldCoord(overworld.Width / 2, overworld.Height / 2);
 
-        IslandPlan plan = overworld.IslandPlan;
+        RevealAround(overworld, center, RevealRadius);
+    }
 
-        for (int y = 0; y < plan.Height; y++)
+    public static void ComputeVisible(Overworld overworld, WorldCoord center, bool[] visible)
+    {
+        Array.Clear(visible, 0, visible.Length);
+
+        for (int dy = -RevealRadius; dy <= RevealRadius; dy++)
         {
-            for (int x = 0; x < plan.Width; x++)
+            for (int dx = -RevealRadius; dx <= RevealRadius; dx++)
             {
-                if (plan.GetCell(x, y).IsCoast)
+                if (dx * dx + dy * dy > RevealRadius * RevealRadius)
                 {
-                    overworld.Explored[overworld.GetIndex(new WorldCoord(x, y))] = true;
+                    continue;
                 }
-            }
-        }
 
-        if (plan.VisitorCenterCell.X >= 0)
-        {
-            RevealAround(overworld, plan.VisitorCenterCell, RevealRadius);
+                var coord = new WorldCoord(center.X + dx, center.Y + dy);
+                if (!overworld.Contains(coord))
+                {
+                    continue;
+                }
+
+                visible[overworld.GetIndex(coord)] = true;
+            }
         }
     }
 

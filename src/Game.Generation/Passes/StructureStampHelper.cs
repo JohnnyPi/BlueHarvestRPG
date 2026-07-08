@@ -70,7 +70,7 @@ internal static class StructureStampHelper
 
         if (surfaceView)
         {
-            StampDetailFeatures(map, worldCell, structure, blueprint, floorIndex);
+            StampDetailFeatures(map, worldCell, structure, blueprint, floorIndex, surfaceView: true);
         }
     }
 
@@ -265,8 +265,14 @@ internal static class StructureStampHelper
         WorldCoord worldCell,
         StructurePlacement structure,
         StructureBlueprintDefinition blueprint,
-        int floorIndex)
+        int floorIndex,
+        bool surfaceView)
     {
+        if (surfaceView)
+        {
+            return;
+        }
+
         TerrainId? detail = StructureBlueprintCatalog.ParseDetailTerrain(blueprint.DetailTerrain);
         if (detail is null)
         {

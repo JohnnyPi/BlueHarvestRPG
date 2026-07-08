@@ -308,6 +308,7 @@ public sealed class SimulationHost
 
         if (!Session.TryMoveLocal(deltaX, deltaY))
         {
+            Session.UpdateFacingFromDelta(deltaX, deltaY);
             return;
         }
 
@@ -327,6 +328,7 @@ public sealed class SimulationHost
 
             Session.MessageLog.Add(
                 blocked.Length > 0 ? blocked : "That terrain cannot be crossed on foot.");
+            Session.UpdateFacingFromDelta(deltaX, deltaY);
             Session.MarkRenderDirty();
             return;
         }
@@ -336,12 +338,14 @@ public sealed class SimulationHost
         {
             Session.MessageLog.Add(
                 $"Too exhausted to travel ({cost} stamina required, have {Session.PlayerTurnState.Energy}). Press Space to rest.");
+            Session.UpdateFacingFromDelta(deltaX, deltaY);
             Session.MarkRenderDirty();
             return;
         }
 
         if (!Session.TryMoveOverworld(deltaX, deltaY))
         {
+            Session.UpdateFacingFromDelta(deltaX, deltaY);
             return;
         }
 
@@ -484,6 +488,17 @@ public sealed class SimulationHost
             $"Elev {cell.Elevation:F2}  Moist {cell.Moisture:F2}  Temp {cell.Temperature:F2}",
             creatureEnergy: null);
 
+        _visibleBuffer ??= new bool[size];
+        if (_visibleBuffer.Length != size)
+        {
+            _visibleBuffer = new bool[size];
+        }
+
+        for (int i = 0; i < size; i++)
+        {
+            _visibleBuffer[i] = Session.VisibleTiles[i];
+        }
+
         return new RenderSnapshot(
             Title: "Blue Harvest",
             ViewMode: Session.ViewMode,
@@ -492,10 +507,11 @@ public sealed class SimulationHost
             CellData: _cellBuffer,
             PlayerX: player.X,
             PlayerY: player.Y,
+            PlayerFacing: Session.PlayerFacing,
             DebugInfo: debugInfo,
             TickCount: _actionTickCount,
             Entities: [],
-            VisibleTiles: null,
+            VisibleTiles: _visibleBuffer,
             ExploredTiles: Overworld.Explored,
             MessageLog: Session.MessageLog.Recent(8),
             HoverTooltip: HoverTooltip,
@@ -630,6 +646,7 @@ public sealed class SimulationHost
             CellData: _cellBuffer,
             PlayerX: player.X,
             PlayerY: player.Y,
+            PlayerFacing: Session.PlayerFacing,
             DebugInfo: debugInfo,
             TickCount: _actionTickCount,
             Entities: _entityBuffer,

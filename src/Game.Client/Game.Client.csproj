@@ -17,6 +17,9 @@
     <PackageReference Include="MonoGame.Content.Builder.Task" Version="3.8.4.1" />
   </ItemGroup>
   <ItemGroup>
+    <MonoGameContentReference Include="Content\Content.mgcb" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\Game.Content\Game.Content.csproj" />
     <ProjectReference Include="..\Game.Generation\Game.Generation.csproj" />
     <ProjectReference Include="..\Game.Persistence\Game.Persistence.csproj" />

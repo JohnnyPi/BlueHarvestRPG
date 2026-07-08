@@ -8,6 +8,67 @@ namespace Game.Generation.Island;
 
 public static class BiomeBalanceHelper
 {
+    public const IslandCellRole EnterableRoles =
+        IslandCellRole.VisitorCenter
+        | IslandCellRole.Dock
+        | IslandCellRole.Helipad
+        | IslandCellRole.Hotel
+        | IslandCellRole.Restaurant
+        | IslandCellRole.Attraction
+        | IslandCellRole.Maintenance
+        | IslandCellRole.Paddock
+        | IslandCellRole.Tunnel
+        | IslandCellRole.Cavern
+        | IslandCellRole.Ruin
+        | IslandCellRole.Fortification
+        | IslandCellRole.Road;
+
+    public static bool HasEnterableRole(IslandCellRole role)
+    {
+        return (role & EnterableRoles) != 0;
+    }
+
+    public static void StampFacilityBiomes(IslandPlan plan)
+    {
+        StampVisitorCenterPlains(plan);
+
+        for (int y = 0; y < plan.Height; y++)
+        {
+            for (int x = 0; x < plan.Width; x++)
+            {
+                if (!plan.IsLand(x, y))
+                {
+                    continue;
+                }
+
+                ref IslandCellData cell = ref plan.GetCell(x, y);
+                if ((cell.Role & IslandCellRole.Road) != 0)
+                {
+                    if (!cell.IsCoast)
+                    {
+                        cell.Biome = BiomeId.Plains;
+                    }
+
+                    continue;
+                }
+
+                if (!HasEnterableRole(cell.Role))
+                {
+                    continue;
+                }
+
+                if ((cell.Role & IslandCellRole.Dock) != 0 && cell.IsCoast)
+                {
+                    cell.Biome = BiomeId.Beach;
+                }
+                else if (!cell.IsCoast)
+                {
+                    cell.Biome = BiomeId.Plains;
+                }
+            }
+        }
+    }
+
     public static void EnsureBiomeFloor(IslandPlan plan, ulong stageSeed, float minShare = 0.025f)
     {
         var landCells = CollectLandCells(plan);
@@ -112,6 +173,17 @@ public static class BiomeBalanceHelper
 
     public static bool IsProtectedLandmarkCell(IslandPlan plan, int x, int y)
     {
+        if (!plan.Contains(x, y) || !plan.IsLand(x, y))
+        {
+            return false;
+        }
+
+        ref IslandCellData cell = ref plan.GetCell(x, y);
+        if (HasEnterableRole(cell.Role))
+        {
+            return true;
+        }
+
         if (plan.VisitorCenterCell.X < 0)
         {
             return false;
@@ -119,7 +191,7 @@ public static class BiomeBalanceHelper
 
         int dx = x - plan.VisitorCenterCell.X;
         int dy = y - plan.VisitorCenterCell.Y;
-        return dx * dx + dy * dy <= 9;
+        return dx * dx + dy * dy <= 36;
     }
 
     public static float MeasureWetBiomeShare(IslandPlan plan)

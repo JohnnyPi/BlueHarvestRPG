@@ -1,7 +1,8 @@
-using Game.Simulation.World.Island;
+using Game.Generation.Island;
 using Game.Generation.LocalMaps;
 using Game.Generation.Passes;
 using Game.Generation.Noise;
+using Game.Generation.Validation;
 using Game.Simulation.Coordinates;
 using Game.Simulation.LocalMaps;
 using Game.Simulation.Seeds;
@@ -18,6 +19,10 @@ public sealed class LocalMapGenerator : ILocalMapGenerator
     private readonly FenceStampPass _fenceStampPass = new();
     private readonly TunnelStampPass _tunnelStampPass = new();
     private readonly RuinStampPass _ruinStampPass = new();
+    private readonly FacilityRoadStampPass _facilityRoadStampPass = new();
+    private readonly FacilityClearingPass _facilityClearingPass = new();
+    private readonly StructureDoorRestorePass _structureDoorRestorePass = new();
+    private readonly NavigabilityValidator _navigabilityValidator = new();
     private readonly StructureBlueprintCatalog _blueprintCatalog;
     private readonly StructureFloorGenerator _floorGenerator;
 
@@ -69,7 +74,8 @@ public sealed class LocalMapGenerator : ILocalMapGenerator
 
         if (islandPlan is not null)
         {
-            GenerateFromIslandCell(map, islandPlan.GetCell(coordinate), random);
+            IslandCellData islandCell = islandPlan.GetCell(coordinate);
+            GenerateFromIslandCell(map, islandCell, random);
         }
         else
         {
@@ -86,9 +92,11 @@ public sealed class LocalMapGenerator : ILocalMapGenerator
                     GenerateSwamp(map, random);
                     break;
                 case BiomeId.Mountains:
-                case BiomeId.Hills:
                 case BiomeId.Volcanic:
                     GenerateMountains(map, random, cell.Biome == BiomeId.Volcanic);
+                    break;
+                case BiomeId.Hills:
+                    GenerateHills(map, random);
                     break;
                 case BiomeId.Beach:
                     GenerateBeach(map, random);
@@ -118,6 +126,8 @@ public sealed class LocalMapGenerator : ILocalMapGenerator
             _fenceStampPass.Execute(map, context);
             _tunnelStampPass.Execute(map, context);
             _ruinStampPass.Execute(map, context);
+            _facilityClearingPass.Execute(map, context);
+            _facilityRoadStampPass.Execute(map, context);
         }
         else
         {
@@ -125,6 +135,12 @@ public sealed class LocalMapGenerator : ILocalMapGenerator
         }
 
         _boundaryConnectionPass.Execute(map, context);
+
+        if (islandPlan is not null)
+        {
+            _structureDoorRestorePass.Execute(map, context);
+            ValidateNavigability(map, context);
+        }
 
         return map;
     }
@@ -134,6 +150,12 @@ public sealed class LocalMapGenerator : ILocalMapGenerator
         if (!islandCell.IsLand)
         {
             GenerateOcean(map, random);
+            return;
+        }
+
+        if (BiomeBalanceHelper.HasEnterableRole(islandCell.Role))
+        {
+            GenerateFacilityTerrain(map, islandCell.Role, random);
             return;
         }
 
@@ -150,9 +172,11 @@ public sealed class LocalMapGenerator : ILocalMapGenerator
                 GenerateSwamp(map, random);
                 break;
             case BiomeId.Mountains:
-            case BiomeId.Hills:
             case BiomeId.Volcanic:
                 GenerateMountains(map, random, islandCell.Biome == BiomeId.Volcanic);
+                break;
+            case BiomeId.Hills:
+                GenerateHills(map, random);
                 break;
             case BiomeId.Plains:
                 GeneratePlains(map, random);
@@ -161,6 +185,132 @@ public sealed class LocalMapGenerator : ILocalMapGenerator
                 GeneratePlains(map, random);
                 break;
         }
+    }
+
+    private static void GenerateFacilityTerrain(LocalMap map, IslandCellRole role, DeterministicRandom random)
+    {
+        if ((role & IslandCellRole.Dock) != 0)
+        {
+            GenerateFacilityDock(map, random);
+            return;
+        }
+
+        if ((role & IslandCellRole.Road) != 0)
+        {
+            GeneratePlains(map, random);
+            return;
+        }
+
+        if ((role & IslandCellRole.Paddock) != 0)
+        {
+            GenerateFacilityPaddock(map, random);
+            return;
+        }
+
+        if ((role & (IslandCellRole.Ruin | IslandCellRole.Fortification | IslandCellRole.Tunnel | IslandCellRole.Cavern)) != 0)
+        {
+            GenerateFacilityRuin(map, random);
+            return;
+        }
+
+        GenerateFacilityYard(map, random);
+    }
+
+    private static void GenerateFacilityYard(LocalMap map, DeterministicRandom random)
+    {
+        for (int y = 0; y < LocalMap.Height; y++)
+        {
+            for (int x = 0; x < LocalMap.Width; x++)
+            {
+                map.SetTerrain(x, y, TerrainId.Grass, TileFlags.None);
+                float roll = random.NextFloat();
+                if (roll < 0.06f)
+                {
+                    map.SetTerrain(x, y, TerrainId.Dirt, TileFlags.None);
+                }
+            }
+        }
+    }
+
+    private static void GenerateFacilityPaddock(LocalMap map, DeterministicRandom random)
+    {
+        for (int y = 0; y < LocalMap.Height; y++)
+        {
+            for (int x = 0; x < LocalMap.Width; x++)
+            {
+                map.SetTerrain(x, y, TerrainId.Grass, TileFlags.None);
+                if (random.NextFloat() < 0.04f)
+                {
+                    map.SetTerrain(x, y, TerrainId.Dirt, TileFlags.None);
+                }
+            }
+        }
+    }
+
+    private static void GenerateFacilityRuin(LocalMap map, DeterministicRandom random)
+    {
+        for (int y = 0; y < LocalMap.Height; y++)
+        {
+            for (int x = 0; x < LocalMap.Width; x++)
+            {
+                map.SetTerrain(x, y, TerrainId.Grass, TileFlags.None);
+                float roll = random.NextFloat();
+                if (roll < 0.02f)
+                {
+                    map.SetTerrain(x, y, TerrainId.Rock, TileFlags.BlocksMovement);
+                }
+                else if (roll < 0.06f)
+                {
+                    map.SetTerrain(x, y, TerrainId.Dirt, TileFlags.None);
+                }
+            }
+        }
+    }
+
+    private static void GenerateFacilityDock(LocalMap map, DeterministicRandom random)
+    {
+        for (int y = 0; y < LocalMap.Height; y++)
+        {
+            for (int x = 0; x < LocalMap.Width; x++)
+            {
+                map.SetTerrain(x, y, TerrainId.Sand, TileFlags.None);
+                if (random.NextFloat() < 0.03f)
+                {
+                    map.SetTerrain(
+                        x,
+                        y,
+                        TerrainId.ShallowWater,
+                        TileFlags.BlocksMovement | TileFlags.ContainsWater);
+                }
+            }
+        }
+    }
+
+    private void ValidateNavigability(LocalMap map, LocalGenerationContext context)
+    {
+        if (context.IslandPlan is null)
+        {
+            return;
+        }
+
+        LocalCoord entry = ResolveEntryPoint(map, context);
+        _navigabilityValidator.ValidateAndRepair(map, entry);
+    }
+
+    private LocalCoord ResolveEntryPoint(LocalMap map, LocalGenerationContext context)
+    {
+        if (context.IslandPlan is not null &&
+            context.BlueprintCatalog is not null &&
+            OverworldLandmarkCatalog.TryResolveEntryPoint(
+                context.IslandPlan,
+                context.WorldCoordinate,
+                map,
+                out LocalCoord landmarkEntry))
+        {
+            return landmarkEntry;
+        }
+
+        return new LocalCoord(LocalMap.Width / 2, LocalMap.Height / 2);
     }
 
     private static void GenerateForest(LocalMap map, DeterministicRandom random, bool denseJungle)
@@ -240,6 +390,30 @@ public sealed class LocalMapGenerator : ILocalMapGenerator
                         y,
                         TerrainId.Tree,
                         TileFlags.BlocksMovement | TileFlags.BlocksVision);
+                }
+            }
+        }
+    }
+
+    private static void GenerateHills(LocalMap map, DeterministicRandom random)
+    {
+        const float rockChance = 0.30f;
+        const float dirtChance = 0.12f;
+
+        for (int y = 0; y < LocalMap.Height; y++)
+        {
+            for (int x = 0; x < LocalMap.Width; x++)
+            {
+                map.SetTerrain(x, y, TerrainId.Grass, TileFlags.None);
+
+                float roll = random.NextFloat();
+                if (roll < rockChance)
+                {
+                    map.SetTerrain(x, y, TerrainId.Rock, TileFlags.BlocksMovement);
+                }
+                else if (roll < rockChance + dirtChance)
+                {
+                    map.SetTerrain(x, y, TerrainId.Dirt, TileFlags.None);
                 }
             }
         }

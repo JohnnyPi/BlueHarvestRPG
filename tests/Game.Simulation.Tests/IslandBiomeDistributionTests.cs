@@ -90,4 +90,34 @@ public class IslandBiomeDistributionTests
         BiomeId visitorBiome = plan.GetCell(plan.VisitorCenterCell).Biome;
         Assert.Equal(BiomeId.Plains, visitorBiome);
     }
+
+    [Fact]
+    public void FacilityLandmarks_UsePlainsOrBeachBiomes()
+    {
+        IslandPlan plan = new IslandWorldGenerator(TestSaveDefaults.FullIsland).Generate(1234UL).IslandPlan!;
+
+        foreach ((IslandCellRole role, string _) in new (IslandCellRole, string)[]
+                 {
+                     (IslandCellRole.Hotel, "Hotel"),
+                     (IslandCellRole.Maintenance, "Maintenance"),
+                     (IslandCellRole.Dock, "Dock")
+                 })
+        {
+            for (int y = 0; y < plan.Height; y++)
+            {
+                for (int x = 0; x < plan.Width; x++)
+                {
+                    if (!plan.GetCell(x, y).Role.HasFlag(role))
+                    {
+                        continue;
+                    }
+
+                    BiomeId biome = plan.GetCell(x, y).Biome;
+                    Assert.True(
+                        biome is BiomeId.Plains or BiomeId.Beach,
+                        $"{role} at ({x},{y}) is {biome}.");
+                }
+            }
+        }
+    }
 }

@@ -107,6 +107,10 @@ public static class GameBootstrap
                 session.EnsurePlayerEntity();
                 session.UpdateVisibility();
             }
+            else
+            {
+                session.UpdateVisibility();
+            }
 
             var host = new SimulationHost(world, session, repository)
             {
@@ -130,6 +134,7 @@ public static class GameBootstrap
         var newSession = new GameSession(world, newRepository, characterProgress);
         OverworldExploration.InitializeTouristMap(world);
         newSession.RevealOverworldAroundPlayer();
+        newSession.UpdateVisibility();
 
         return new SimulationHost(world, newSession, newRepository)
         {

@@ -39,4 +39,7 @@ public sealed class IslandDefinition
     public float MaxWetBiomeShare { get; set; } = 0.32f;
     public float MinElevationStdDev { get; set; } = 0.08f;
     public int BalancePassMaxIterations { get; set; } = 4;
+    public int RoadNetworkJunctionCount { get; set; } = 5;
+    public int RoadWidth { get; set; } = 2;
+    public bool UseLegacyRandomRoads { get; set; }
 }

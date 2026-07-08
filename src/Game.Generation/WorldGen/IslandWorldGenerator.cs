@@ -35,7 +35,11 @@ public sealed class IslandWorldGenerator
 
         ApplyPlanToWorld(world, plan);
         RegionalFeatureGraph.ApplyRivers(world, plan, _config);
-        RegionalFeatureGraph.ApplyRoads(world);
+        FacilityRoadGraphApplier.ApplyToOverworld(world, plan, _config.RoadWidth);
+        if (_config.UseLegacyRandomRoads)
+        {
+            RegionalFeatureGraph.ApplyRoads(world);
+        }
 
         return world;
     }

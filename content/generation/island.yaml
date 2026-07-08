@@ -35,3 +35,6 @@ riverHeadSpacing: 28
 maxWetBiomeShare: 0.32
 minElevationStdDev: 0.08
 balancePassMaxIterations: 4
+roadNetworkJunctionCount: 5
+roadWidth: 2
+useLegacyRandomRoads: false

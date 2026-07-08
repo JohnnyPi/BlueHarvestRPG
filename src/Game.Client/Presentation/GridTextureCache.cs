@@ -75,35 +75,19 @@ internal sealed class GridTextureCache
             {
                 int index = y * width + x;
                 ushort cellValue = snapshot.CellData[index];
-                Color color = snapshot.ViewMode == GameViewMode.Overworld
+                Color baseColor = snapshot.ViewMode == GameViewMode.Overworld
                     ? SafeBiomeColor(cellValue)
                     : SafeTerrainColor(cellValue);
 
-                if (snapshot.ViewMode == GameViewMode.LocalMap &&
-                    snapshot.VisibleTiles is not null &&
-                    snapshot.ExploredTiles is not null)
-                {
-                    if (!snapshot.ExploredTiles[index])
-                    {
-                        color = _unseenColor;
-                    }
-                    else if (!snapshot.VisibleTiles[index])
-                    {
-                        color = Color.Lerp(color, _exploredDimColor, 0.65f);
-                    }
-                }
-                else if (snapshot.ViewMode == GameViewMode.Overworld &&
-                         snapshot.ExploredTiles is not null &&
-                         !snapshot.ExploredTiles[index])
-                {
-                    color = _unseenColor;
-                }
-                else if (snapshot.ViewMode == GameViewMode.Overworld &&
-                         snapshot.HazardousTravelX == x &&
-                         snapshot.HazardousTravelY == y)
-                {
-                    color = Color.Lerp(color, _hazardTravelColor, 0.55f);
-                }
+                Color color = CellVisibilityTint.Resolve(
+                    snapshot,
+                    x,
+                    y,
+                    index,
+                    baseColor,
+                    _unseenColor,
+                    _exploredDimColor,
+                    _hazardTravelColor);
 
                 _pixelBuffer[index] = color;
             }

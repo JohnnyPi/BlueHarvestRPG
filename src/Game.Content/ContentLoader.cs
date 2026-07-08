@@ -27,7 +27,9 @@ public sealed class ContentLoader
         var controls = Load<ControlsDefinition>("controls.yaml");
         var biomeColors = Load<BiomeColorsDefinition>(Path.Combine("presentation", "biomes.yaml"));
         var terrainColors = Load<TerrainColorsDefinition>(Path.Combine("presentation", "terrain.yaml"));
+        var tiles = Load<TilesDefinition>(Path.Combine("presentation", "tiles.yaml"));
         var camera = Load<CameraDefinition>(Path.Combine("presentation", "camera.yaml"));
+        var player = Load<PlayerDefinition>(Path.Combine("presentation", "player.yaml"));
         var biomeRules = Load<BiomeRulesDefinition>(Path.Combine("generation", "biome_rules.yaml"));
         var island = Load<IslandDefinition>(Path.Combine("generation", "island.yaml"));
         var contextMenus = Load<ContextMenusDefinition>(Path.Combine("ui", "context_menus.yaml"));
@@ -42,7 +44,9 @@ public sealed class ContentLoader
             Controls = controls,
             BiomeColors = biomeColors,
             TerrainColors = terrainColors,
+            Tiles = tiles,
             Camera = camera,
+            Player = player,
             BiomeRules = biomeRules,
             Island = island,
             ContextMenus = contextMenus,
@@ -100,6 +104,22 @@ public sealed class ContentLoader
             if (!bundle.TerrainColors.Terrain.ContainsKey(terrain.ToString()))
             {
                 throw new ContentLoadException($"Missing terrain color for '{terrain}'.");
+            }
+        }
+
+        foreach (BiomeId biome in Enum.GetValues<BiomeId>())
+        {
+            if (!bundle.Tiles.Biomes.ContainsKey(biome.ToString()))
+            {
+                throw new ContentLoadException($"Missing biome tile for '{biome}'.");
+            }
+        }
+
+        foreach (TerrainId terrain in Enum.GetValues<TerrainId>())
+        {
+            if (!bundle.Tiles.Terrain.ContainsKey(terrain.ToString()))
+            {
+                throw new ContentLoadException($"Missing terrain tile for '{terrain}'.");
             }
         }
 

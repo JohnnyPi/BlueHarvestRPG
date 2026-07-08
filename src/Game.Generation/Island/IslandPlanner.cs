@@ -28,6 +28,7 @@ public sealed class IslandPlanner
         LandmassStage.Reconcile(plan, _config);
         VolcanicActivityStage.Execute(plan, _config, seed);
         RegionBiomeStage.Execute(plan, _config, seed);
+        RoadNetworkStage.Execute(plan, _config, seed);
         ParkLayoutStage.Execute(plan, _config, seed);
         PaddockStage.Execute(plan, _config, seed);
         MaintenanceStage.Execute(plan, _config, seed);

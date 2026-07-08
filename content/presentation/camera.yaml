@@ -1,4 +1,4 @@
-﻿baseCellSize: 10
+﻿baseCellSize: 32
 minZoom: 0.5
 maxZoom: 8.0
 zoomStep: 1.15

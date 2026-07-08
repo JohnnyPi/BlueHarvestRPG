@@ -1,5 +1,6 @@
 using Game.Simulation.Scenarios;
 using Game.Simulation.Session;
+using Game.Simulation.World;
 
 namespace Game.Simulation.Rendering;
 
@@ -13,6 +14,7 @@ public sealed record RenderSnapshot(
     ushort[] CellData,
     int PlayerX,
     int PlayerY,
+    Direction PlayerFacing,
     string DebugInfo,
     int TickCount,
     EntityRenderData[] Entities,

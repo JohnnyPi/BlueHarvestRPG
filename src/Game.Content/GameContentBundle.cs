@@ -8,7 +8,9 @@ public sealed class GameContentBundle
     public required ControlsDefinition Controls { get; init; }
     public required BiomeColorsDefinition BiomeColors { get; init; }
     public required TerrainColorsDefinition TerrainColors { get; init; }
+    public required TilesDefinition Tiles { get; init; }
     public required CameraDefinition Camera { get; init; }
+    public required PlayerDefinition Player { get; init; }
     public required BiomeRulesDefinition BiomeRules { get; init; }
     public required IslandDefinition Island { get; init; }
     public required ContextMenusDefinition ContextMenus { get; init; }

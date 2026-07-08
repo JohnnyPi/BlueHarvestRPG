@@ -52,6 +52,7 @@ public sealed class MovementService
         }
 
         session.PlayerWorldPosition = next;
+        session.UpdateFacingFromDelta(deltaX, deltaY);
         session.SyncPlayerEntityPosition();
         session.MarkVisibilityDirty();
         session.RevealOverworldAroundPlayer();
@@ -105,6 +106,7 @@ public sealed class MovementService
         }
 
         session.PlayerLocalPosition = next;
+        session.UpdateFacingFromDelta(deltaX, deltaY);
         session.SyncPlayerEntityPosition();
         session.MarkVisibilityDirty();
         return true;
@@ -128,9 +130,13 @@ public sealed class MovementService
                 return;
             }
 
+            int deltaX = next.X - session.PlayerWorldPosition.X;
+            int deltaY = next.Y - session.PlayerWorldPosition.Y;
             session.PlayerWorldPosition = coord;
+            session.UpdateFacingFromDelta(deltaX, deltaY);
             session.MovementPath.Dequeue();
             session.SyncPlayerEntityPosition();
+            session.MarkVisibilityDirty();
             session.RevealOverworldAroundPlayer();
         }
         else if (session.ActiveLocalMap is not null)

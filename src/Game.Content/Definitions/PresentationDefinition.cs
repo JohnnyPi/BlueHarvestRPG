@@ -16,6 +16,12 @@ public sealed class TerrainColorsDefinition
     public Dictionary<string, ColorEntry> Terrain { get; set; } = [];
 }
 
+public sealed class TilesDefinition
+{
+    public Dictionary<string, string> Terrain { get; set; } = [];
+    public Dictionary<string, string> Biomes { get; set; } = [];
+}
+
 public sealed class CameraDefinition
 {
     public int BaseCellSize { get; set; } = 8;
@@ -25,4 +31,22 @@ public sealed class CameraDefinition
     public float PanSpeed { get; set; } = 600f;
     public string SelectionColor { get; set; } = "#FFD700";
     public string PlayerColor { get; set; } = "#FFFF00";
+}
+
+public sealed class PlayerCharacterDefinition
+{
+    public string Texture { get; set; } = string.Empty;
+    public string? IdleTexture { get; set; }
+}
+
+public sealed class PlayerDefinition
+{
+    public string DefaultCharacter { get; set; } = "Char_001";
+    public int FrameWidth { get; set; } = 32;
+    public int FrameHeight { get; set; } = 32;
+    public int Columns { get; set; } = 4;
+    public int Rows { get; set; } = 4;
+    public int WalkFrameDurationMs { get; set; } = 125;
+    public int StepAnimationDurationMs { get; set; } = 250;
+    public Dictionary<string, PlayerCharacterDefinition> Characters { get; set; } = [];
 }

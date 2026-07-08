@@ -1,0 +1,11 @@
+defaultCharacter: Char_001
+frameWidth: 48
+frameHeight: 48
+columns: 4
+rows: 4
+walkFrameDurationMs: 125
+stepAnimationDurationMs: 250
+characters:
+  Char_001:
+    texture: Player/Char_001.png
+    idleTexture: Player/Char_001_Idle.png
