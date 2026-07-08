@@ -306,6 +306,11 @@ public sealed class BlueHarvestGame : Microsoft.Xna.Framework.Game
             _simulation.QueueIntent(GameIntent.EnterCell);
         }
 
+        if (frame.Pressed.Contains(InputAction.LeaveLocalMap))
+        {
+            _simulation.QueueIntent(GameIntent.LeaveLocalMap);
+        }
+
         if (frame.Pressed.Contains(InputAction.RemoveTerrain))
         {
             _simulation.QueueIntent(GameIntent.RemoveTerrain);

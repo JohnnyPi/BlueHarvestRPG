@@ -40,6 +40,8 @@ public static class WanderGoal
                 continue;
             }
 
+            LocalCoord from = entity.LocalPosition;
+            EntityFacing.UpdateFromMove(entity, from, next);
             entity.LocalPosition = next;
             return true;
         }

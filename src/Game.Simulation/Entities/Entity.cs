@@ -2,6 +2,7 @@ using Game.Simulation.AI;
 using Game.Simulation.Coordinates;
 using Game.Simulation.Factions;
 using Game.Simulation.Time;
+using Game.Simulation.World;
 
 namespace Game.Simulation.Entities;
 
@@ -11,6 +12,8 @@ public sealed class Entity
     public EntityKind Kind { get; init; }
     public WorldCoord WorldPosition { get; set; }
     public LocalCoord LocalPosition { get; set; }
+    public Direction Facing { get; set; } = Direction.East;
+    public string? SpriteId { get; set; }
     public bool BlocksMovement { get; set; }
     public bool IsActive { get; set; }
     public ActorTurnState? Actor { get; set; }

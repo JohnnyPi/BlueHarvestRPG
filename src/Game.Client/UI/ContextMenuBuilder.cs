@@ -67,6 +67,7 @@ public static class ContextMenuBuilder
             GameIntent.UseStairsUp => session.CanUseTileTransition(tileX, tileY, blueprintCatalog, TileTransitionKind.StairsUp),
             GameIntent.UseStairsDown => session.CanUseTileTransition(tileX, tileY, blueprintCatalog, TileTransitionKind.StairsDown),
             GameIntent.UseRopeDescent => session.CanUseRopeAt(tileX, tileY, blueprintCatalog),
+            GameIntent.LeaveLocalMap => session.CanLeaveLocalMap(),
             _ => true
         };
     }

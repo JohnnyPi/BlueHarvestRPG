@@ -174,9 +174,16 @@ public sealed class SimulationHost
                 }
                 break;
             case GameIntent.LeaveLocalMap:
-                if (Session.ViewMode == GameViewMode.LocalMap)
+                if (Session.CanLeaveLocalMap(out string? leaveBlockedReason))
                 {
                     Session.LeaveLocalMap();
+                    Session.MessageLog.Add("Returned to the overworld.");
+                    Session.MarkRenderDirty();
+                }
+                else if (leaveBlockedReason is not null)
+                {
+                    Session.MessageLog.Add(leaveBlockedReason);
+                    Session.MarkRenderDirty();
                 }
                 break;
             case GameIntent.RemoveTerrain:
@@ -534,7 +541,8 @@ public sealed class SimulationHost
             RunOutcome: Session.Outcome,
             EscapeEnding: Session.EscapeEnding,
             RunEndTitle: Session.RunEndTitle,
-            RunEndSummary: Session.RunEndSummary);
+            RunEndSummary: Session.RunEndSummary,
+            CanReturnToOverworld: false);
     }
 
     private OverworldLandmarkView[] BuildOverworldLandmarks()
@@ -629,7 +637,12 @@ public sealed class SimulationHost
 
         _entityBuffer = map.Entities.All
             .Where(entity => entity.IsActive && entity.Kind != EntityKind.Player)
-            .Select(entity => new EntityRenderData(entity.LocalPosition.X, entity.LocalPosition.Y, (int)entity.Kind))
+            .Select(entity => new EntityRenderData(
+                entity.LocalPosition.X,
+                entity.LocalPosition.Y,
+                (int)entity.Kind,
+                entity.Facing,
+                entity.SpriteId))
             .ToArray();
 
         string debugInfo = BuildDebugInfo(
@@ -668,7 +681,8 @@ public sealed class SimulationHost
             RunOutcome: Session.Outcome,
             EscapeEnding: Session.EscapeEnding,
             RunEndTitle: Session.RunEndTitle,
-            RunEndSummary: Session.RunEndSummary);
+            RunEndSummary: Session.RunEndSummary,
+            CanReturnToOverworld: Session.CanLeaveLocalMap());
     }
 
     private string BuildDebugInfo(

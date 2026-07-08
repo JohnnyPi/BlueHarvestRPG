@@ -4,7 +4,7 @@ using Game.Simulation.World;
 
 namespace Game.Simulation.Rendering;
 
-public readonly record struct EntityRenderData(int X, int Y, int Kind);
+public readonly record struct EntityRenderData(int X, int Y, int Kind, Direction Facing, string? SpriteId);
 
 public sealed record RenderSnapshot(
     string Title,
@@ -41,4 +41,5 @@ public sealed record RenderSnapshot(
     RunOutcome RunOutcome = RunOutcome.None,
     EscapeEndingKind EscapeEnding = EscapeEndingKind.None,
     string? RunEndTitle = null,
-    string? RunEndSummary = null);
+    string? RunEndSummary = null,
+    bool CanReturnToOverworld = false);

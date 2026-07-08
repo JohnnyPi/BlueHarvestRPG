@@ -9,6 +9,9 @@
     label: Inspect
     intent: InspectSelected
 localMap:
+  - id: return_overworld
+    label: Return to Overworld
+    intent: LeaveLocalMap
   - id: move
     label: Move
     intent: MoveToSelected

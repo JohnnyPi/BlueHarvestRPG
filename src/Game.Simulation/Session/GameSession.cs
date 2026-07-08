@@ -3,6 +3,7 @@ using Game.Simulation.Character;
 using Game.Simulation.Combat;
 using Game.Simulation.Coordinates;
 using Game.Simulation.Entities;
+using Game.Simulation.Factions;
 using Game.Simulation.Items;
 using Game.Simulation.LocalMaps;
 using Game.Simulation.Quests;
@@ -395,6 +396,32 @@ public sealed class GameSession
         ScenarioObjectiveTracker.Check(this);
     }
 
+    public bool CanLeaveLocalMap() => CanLeaveLocalMap(out _);
+
+    public bool CanLeaveLocalMap(out string? blockedReason)
+    {
+        blockedReason = null;
+
+        if (ViewMode != GameViewMode.LocalMap || ActiveLocalMap is null)
+        {
+            return false;
+        }
+
+        if (IsInStructureInterior)
+        {
+            blockedReason = "Exit the building before returning to the overworld.";
+            return false;
+        }
+
+        if (HasAdjacentHostile())
+        {
+            blockedReason = "Too dangerous to leave the area right now.";
+            return false;
+        }
+
+        return true;
+    }
+
     public void LeaveLocalMap()
     {
         if (ActiveLocalMap is not null)
@@ -477,6 +504,37 @@ public sealed class GameSession
     }
 
     public bool CanIssuePlayerCommand() => !IsRunComplete;
+
+    private bool HasAdjacentHostile()
+    {
+        if (ActiveLocalMap is null)
+        {
+            return false;
+        }
+
+        LocalCoord player = PlayerLocalPosition;
+        foreach (Entity entity in ActiveLocalMap.Entities.All)
+        {
+            if (!entity.IsActive || entity.Id == EntityId.Player || !entity.IsAlive)
+            {
+                continue;
+            }
+
+            if (!FactionRelations.IsHostile(FactionId.Player, entity.Faction))
+            {
+                continue;
+            }
+
+            int deltaX = Math.Abs(entity.LocalPosition.X - player.X);
+            int deltaY = Math.Abs(entity.LocalPosition.Y - player.Y);
+            if (deltaX <= 1 && deltaY <= 1)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
 
     public void CompleteRun(RunOutcome outcome, EscapeEndingKind escapeEnding, string title, string summary)
     {

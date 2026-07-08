@@ -31,7 +31,7 @@ public sealed class PauseMenuScreen : IUiScreen
 
     public void HandleInput(InputFrame frame, UiInputResult result, RenderSnapshot snapshot, int viewportWidth, int viewportHeight)
     {
-        RebuildEntries(snapshot.ViewMode);
+        RebuildEntries(snapshot);
         Layout(viewportWidth, viewportHeight);
 
         if (frame.Pressed.Contains(InputAction.OpenPauseMenu) ||
@@ -62,7 +62,7 @@ public sealed class PauseMenuScreen : IUiScreen
 
     public void Draw(UiPainter painter, UiThemeColors theme, RenderSnapshot snapshot, int viewportWidth, int viewportHeight, int mouseX, int mouseY)
     {
-        RebuildEntries(snapshot.ViewMode);
+        RebuildEntries(snapshot);
         Layout(viewportWidth, viewportHeight);
 
         painter.DrawRect(_menuX, _menuY, _menuWidth, _menuHeight, theme.PanelBackground);
@@ -87,14 +87,14 @@ public sealed class PauseMenuScreen : IUiScreen
         }
     }
 
-    private void RebuildEntries(GameViewMode viewMode)
+    private void RebuildEntries(RenderSnapshot snapshot)
     {
         _entries.Clear();
         _entries.Add(new PauseMenuEntry(PauseMenuAction.Resume, "Resume"));
         _entries.Add(new PauseMenuEntry(PauseMenuAction.Save, "Save"));
-        if (viewMode == GameViewMode.LocalMap)
+        if (snapshot.ViewMode == GameViewMode.LocalMap && snapshot.CanReturnToOverworld)
         {
-            _entries.Add(new PauseMenuEntry(PauseMenuAction.LeaveLocalMap, "Leave Local Map"));
+            _entries.Add(new PauseMenuEntry(PauseMenuAction.LeaveLocalMap, "Return to Overworld"));
         }
 
         _entries.Add(new PauseMenuEntry(PauseMenuAction.Settings, "Settings"));

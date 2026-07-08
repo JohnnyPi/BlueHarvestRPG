@@ -1,0 +1,61 @@
+kindBindings:
+  raptor: raptor
+  wanderingCreature: raptor
+
+creatures:
+  raptor:
+    texture: Dinosaurs/Raptor-72x72.png
+    tileWidth: 1.0
+    tileHeight: 1.0
+  dilophosaurus:
+    texture: Dinosaurs/Dilophosaurus-72x72.png
+    tileWidth: 1.0
+    tileHeight: 1.0
+  megarachne:
+    texture: Dinosaurs/Megarachne-72x72.png
+    tileWidth: 1.0
+    tileHeight: 1.0
+  pteranodon:
+    texture: Dinosaurs/Pteranodon-72x72.png
+    tileWidth: 1.0
+    tileHeight: 1.0
+  smilodon:
+    texture: Dinosaurs/Smilodon-72x72.png
+    tileWidth: 1.0
+    tileHeight: 1.0
+  ichthyosaurus:
+    texture: Dinosaurs/Ichthyosaurus-72x72.png
+    tileWidth: 1.25
+    tileHeight: 1.0
+  ankylosaurus:
+    texture: Dinosaurs/Ankylosaurus-72x72.png
+    tileWidth: 1.1
+    tileHeight: 1.0
+  parasaurolophus:
+    texture: Dinosaurs/Parasaurolophus-72x72.png
+    tileWidth: 1.25
+    tileHeight: 1.1
+  stegosaurus:
+    texture: Dinosaurs/Stegosaurus-72x72.png
+    tileWidth: 1.25
+    tileHeight: 1.1
+  triceratops:
+    texture: Dinosaurs/Triceratops-72x72.png
+    tileWidth: 1.25
+    tileHeight: 1.1
+  plesiosaurus:
+    texture: Dinosaurs/Plesiosaurus-72x72.png
+    tileWidth: 1.5
+    tileHeight: 1.0
+  spinosaurus:
+    texture: Dinosaurs/Spinosaurus-72x72.png
+    tileWidth: 1.5
+    tileHeight: 1.25
+  tRex:
+    texture: Dinosaurs/T-Rex-72x72.png
+    tileWidth: 1.5
+    tileHeight: 1.35
+  brachiosaurus:
+    texture: Dinosaurs/Brachiosaurus-72x72.png
+    tileWidth: 2.0
+    tileHeight: 1.5

@@ -205,6 +205,8 @@ public static class RaptorBehavior
             return false;
         }
 
+        LocalCoord from = entity.LocalPosition;
+        EntityFacing.UpdateFromMove(entity, from, next.Value);
         entity.LocalPosition = next.Value;
         return true;
     }

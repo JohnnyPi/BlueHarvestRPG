@@ -129,6 +129,8 @@ public static class EntityFactory
             Kind = EntityKind.Raptor,
             WorldPosition = mapCoordinate,
             LocalPosition = localPosition,
+            Facing = Direction.East,
+            SpriteId = "raptor",
             BlocksMovement = true,
             IsActive = true,
             Faction = FactionId.Wildlife,

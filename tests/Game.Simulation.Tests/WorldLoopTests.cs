@@ -3,7 +3,11 @@ using Game.Generation.LocalMaps;
 using Game.Generation.WorldGen;
 using Game.Persistence.Repositories;
 using Game.Persistence.Saves;
+using Game.Simulation;
 using Game.Simulation.Coordinates;
+using Game.Simulation.Entities;
+using Game.Simulation.Factions;
+using Game.Simulation.Input;
 using Game.Simulation.LocalMaps;
 using Game.Simulation.Session;
 using Game.Simulation.World;
@@ -146,6 +150,65 @@ public class GameSessionTests
 
         Assert.Equal(GameViewMode.Overworld, host.Session.ViewMode);
         Assert.Null(host.Session.ActiveLocalMap);
+    }
+
+    [Fact]
+    public void CanLeaveLocalMap_AllowedOnSurfaceLocalMap()
+    {
+        SimulationHost host = CreateHost(42UL);
+        host.Session.EnterWorldCell();
+
+        Assert.True(host.Session.CanLeaveLocalMap(out string? reason));
+        Assert.Null(reason);
+    }
+
+    [Fact]
+    public void CanLeaveLocalMap_BlockedInsideStructure()
+    {
+        SimulationHost host = CreateHost(42UL);
+        host.Session.EnterWorldCell();
+        host.Session.ActiveLocalMap = new LocalMap(new MapKey(host.Session.PlayerWorldPosition, 1, 0));
+
+        Assert.False(host.Session.CanLeaveLocalMap(out string? reason));
+        Assert.Contains("building", reason, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void CanLeaveLocalMap_BlockedWhenHostileAdjacent()
+    {
+        SimulationHost host = CreateHost(42UL);
+        host.Session.EnterWorldCell();
+        LocalCoord player = host.Session.PlayerLocalPosition;
+        host.Session.ActiveLocalMap!.Entities.Add(new Entity
+        {
+            Id = new EntityId(9001),
+            Kind = EntityKind.Raptor,
+            WorldPosition = host.Session.PlayerWorldPosition,
+            LocalPosition = new LocalCoord(player.X + 1, player.Y),
+            BlocksMovement = true,
+            IsActive = true,
+            Faction = FactionId.Wildlife,
+            MaxHealth = 24,
+            Health = 24
+        });
+
+        Assert.False(host.Session.CanLeaveLocalMap(out string? reason));
+        Assert.Contains("danger", reason, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void LeaveLocalMap_IntentBlockedInsideStructure()
+    {
+        SimulationHost host = CreateHost(42UL);
+        host.Session.EnterWorldCell();
+        host.Session.ActiveLocalMap = new LocalMap(new MapKey(host.Session.PlayerWorldPosition, 1, 0));
+
+        host.QueueIntent(GameIntent.LeaveLocalMap);
+        host.Tick();
+
+        Assert.Equal(GameViewMode.LocalMap, host.Session.ViewMode);
+        Assert.Contains(host.Session.MessageLog.Recent(8), message =>
+            message.Contains("building", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]

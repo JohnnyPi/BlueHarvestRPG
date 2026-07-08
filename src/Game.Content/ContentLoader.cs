@@ -30,6 +30,7 @@ public sealed class ContentLoader
         var tiles = Load<TilesDefinition>(Path.Combine("presentation", "tiles.yaml"));
         var camera = Load<CameraDefinition>(Path.Combine("presentation", "camera.yaml"));
         var player = Load<PlayerDefinition>(Path.Combine("presentation", "player.yaml"));
+        var creatures = Load<CreaturesDefinition>(Path.Combine("presentation", "creatures.yaml"));
         var biomeRules = Load<BiomeRulesDefinition>(Path.Combine("generation", "biome_rules.yaml"));
         var island = Load<IslandDefinition>(Path.Combine("generation", "island.yaml"));
         var contextMenus = Load<ContextMenusDefinition>(Path.Combine("ui", "context_menus.yaml"));
@@ -47,6 +48,7 @@ public sealed class ContentLoader
             Tiles = tiles,
             Camera = camera,
             Player = player,
+            Creatures = creatures,
             BiomeRules = biomeRules,
             Island = island,
             ContextMenus = contextMenus,
@@ -125,6 +127,27 @@ public sealed class ContentLoader
 
         ValidateMenu(bundle.ContextMenus.Overworld, "overworld");
         ValidateMenu(bundle.ContextMenus.LocalMap, "localMap");
+        ValidateCreatures(bundle.Creatures);
+    }
+
+    private static void ValidateCreatures(CreaturesDefinition creatures)
+    {
+        foreach ((string kindKey, string creatureKey) in creatures.KindBindings)
+        {
+            if (!creatures.Creatures.ContainsKey(creatureKey))
+            {
+                throw new ContentLoadException(
+                    $"Creature kind binding '{kindKey}' references unknown creature '{creatureKey}'.");
+            }
+        }
+
+        foreach ((string creatureKey, CreatureSpriteDefinition definition) in creatures.Creatures)
+        {
+            if (string.IsNullOrWhiteSpace(definition.Texture))
+            {
+                throw new ContentLoadException($"Creature '{creatureKey}' is missing a texture path.");
+            }
+        }
     }
 
     private static void ValidateMenu(IReadOnlyList<ContextMenuEntry> entries, string section)

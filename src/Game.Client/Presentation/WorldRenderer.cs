@@ -47,6 +47,7 @@ public sealed class WorldRenderer
     private TileTextureCatalog? _tileTextures;
     private PlayerSpriteRenderer? _playerSprite;
     private PlayerSpriteAnimator? _playerAnimator;
+    private CreatureSpriteCatalog? _creatureSprites;
     private readonly DebugOverlay _debugOverlay = new();
 
     public WorldRenderer(GraphicsDevice graphicsDevice, ContentManager content, GameContentBundle bundle)
@@ -104,6 +105,7 @@ public sealed class WorldRenderer
         _tileTextures = new TileTextureCatalog(_content, _bundle.Tiles);
         _playerSprite = new PlayerSpriteRenderer(_content, _bundle.Player);
         _playerAnimator = new PlayerSpriteAnimator(_playerSprite, _bundle.Player);
+        _creatureSprites = new CreatureSpriteCatalog(_content, _bundle.Creatures);
 
         _uiPainter = new UiPainter(_spriteBatch, _pixel, _font);
     }
@@ -261,7 +263,29 @@ public sealed class WorldRenderer
             };
 
             Vector2 entityScreen = camera.WorldToScreen(entity.X, entity.Y);
-            DrawRect((int)entityScreen.X, (int)entityScreen.Y, tileSize, tileSize, entityColor);
+            int screenX = (int)Math.Round(entityScreen.X);
+            int screenY = (int)Math.Round(entityScreen.Y);
+
+            string? spriteId = _creatureSprites?.ResolveSpriteId((EntityKind)entity.Kind, entity.SpriteId);
+            if (_creatureSprites is not null &&
+                spriteId is not null &&
+                _creatureSprites.TryGet(spriteId, out CreatureSpriteEntry creatureSprite))
+            {
+                Rectangle destination = CreatureSpriteCatalog.ComputeDestination(
+                    entity.Facing,
+                    tileSize,
+                    screenX,
+                    screenY,
+                    creatureSprite.TileWidth,
+                    creatureSprite.TileHeight,
+                    out SpriteEffects effects);
+
+                _spriteBatch.Draw(creatureSprite.Texture, destination, null, Color.White, 0f, Vector2.Zero, effects, 0f);
+                drawRects++;
+                continue;
+            }
+
+            DrawRect(screenX, screenY, tileSize, tileSize, entityColor);
             drawRects++;
         }
 

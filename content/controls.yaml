@@ -29,6 +29,8 @@
     mouse: [LeftButton]
   EnterCell:
     keyboard: [Enter]
+  LeaveLocalMap:
+    keyboard: [Back]
   RemoveTerrain:
     keyboard: [X]
   SaveGame:

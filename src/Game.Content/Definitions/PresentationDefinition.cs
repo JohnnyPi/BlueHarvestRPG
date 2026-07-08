@@ -50,3 +50,16 @@ public sealed class PlayerDefinition
     public int StepAnimationDurationMs { get; set; } = 250;
     public Dictionary<string, PlayerCharacterDefinition> Characters { get; set; } = [];
 }
+
+public sealed class CreatureSpriteDefinition
+{
+    public string Texture { get; set; } = string.Empty;
+    public float TileWidth { get; set; } = 1f;
+    public float TileHeight { get; set; } = 1f;
+}
+
+public sealed class CreaturesDefinition
+{
+    public Dictionary<string, string> KindBindings { get; set; } = [];
+    public Dictionary<string, CreatureSpriteDefinition> Creatures { get; set; } = [];
+}

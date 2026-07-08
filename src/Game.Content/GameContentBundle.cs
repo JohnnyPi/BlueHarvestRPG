@@ -11,6 +11,7 @@ public sealed class GameContentBundle
     public required TilesDefinition Tiles { get; init; }
     public required CameraDefinition Camera { get; init; }
     public required PlayerDefinition Player { get; init; }
+    public required CreaturesDefinition Creatures { get; init; }
     public required BiomeRulesDefinition BiomeRules { get; init; }
     public required IslandDefinition Island { get; init; }
     public required ContextMenusDefinition ContextMenus { get; init; }
