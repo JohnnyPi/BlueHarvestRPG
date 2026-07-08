@@ -1,5 +1,6 @@
 using Game.Content.Definitions;
 using Game.Generation.Noise;
+using Game.Generation.Voronoi;
 using Game.Simulation.Seeds;
 using Game.Simulation.World.Island;
 
@@ -27,28 +28,6 @@ public static class VoronoiRegionStage
             });
         }
 
-        for (int y = 0; y < plan.Height; y++)
-        {
-            for (int x = 0; x < plan.Width; x++)
-            {
-                int nearestId = 0;
-                int nearestDistSq = int.MaxValue;
-
-                foreach (IslandRegion region in plan.Regions)
-                {
-                    int dx = x - region.SiteX;
-                    int dy = y - region.SiteY;
-                    int distSq = dx * dx + dy * dy;
-
-                    if (distSq < nearestDistSq)
-                    {
-                        nearestDistSq = distSq;
-                        nearestId = region.Id;
-                    }
-                }
-
-                plan.RegionIds[y * plan.Width + x] = nearestId;
-            }
-        }
+        VoronoiField.ComputeField(plan, config, stageSeed, config.BiomeBlendNeighborCount);
     }
 }

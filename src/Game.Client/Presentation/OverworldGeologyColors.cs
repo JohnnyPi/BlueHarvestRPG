@@ -5,6 +5,7 @@ namespace Game.Client.Presentation;
 public static class OverworldGeologyColors
 {
     public static readonly Color River = new(0x4F, 0xC3, 0xF7, 220);
+    public static readonly Color Road = new(0xA1, 0x88, 0x5A, 230);
     public static readonly Color Divergent = new(0x2E, 0xCC, 0xB0, 230);
     public static readonly Color Subduction = new(0xE7, 0x4C, 0x3C, 230);
     public static readonly Color Collision = new(0xF3, 0x9C, 0x12, 230);

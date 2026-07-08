@@ -49,3 +49,5 @@
     keyboard: [Home, C]
   ToggleDebug:
     keyboard: [F3]
+  RevealMap:
+    keyboard: [F4]

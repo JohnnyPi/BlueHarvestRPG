@@ -13,10 +13,13 @@ public sealed class IslandWorldGenerator
     private readonly IslandPlanner _planner;
     private readonly IslandDefinition _config;
 
-    public IslandWorldGenerator(IslandDefinition config, StructureBlueprintCatalog? blueprintCatalog = null)
+    public IslandWorldGenerator(
+        IslandDefinition config,
+        StructureBlueprintCatalog? blueprintCatalog = null,
+        BiomeRulesDefinition? biomeRules = null)
     {
         _config = config;
-        _planner = new IslandPlanner(config, blueprintCatalog);
+        _planner = new IslandPlanner(config, blueprintCatalog, biomeRules);
     }
 
     public Overworld Generate(ulong seed)

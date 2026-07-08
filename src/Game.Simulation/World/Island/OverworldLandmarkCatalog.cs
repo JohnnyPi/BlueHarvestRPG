@@ -9,17 +9,8 @@ namespace Game.Simulation.World.Island;
 
 public static class OverworldLandmarkCatalog
 {
-    private static readonly (IslandCellRole Role, string Name)[] LandmarkRoles =
+    private static readonly (IslandCellRole Role, string Name)[] SiteRoles =
     [
-        (IslandCellRole.VisitorCenter, "Visitor Center"),
-        (IslandCellRole.Dock, "Dock"),
-        (IslandCellRole.Helipad, "Helipad"),
-        (IslandCellRole.Maintenance, "Maintenance compound"),
-        (IslandCellRole.Hotel, "Hotel"),
-        (IslandCellRole.Restaurant, "Restaurant"),
-        (IslandCellRole.Attraction, "Attraction"),
-        (IslandCellRole.Ruin, "Ruins"),
-        (IslandCellRole.Fortification, "Fortification"),
         (IslandCellRole.Paddock, "Paddock"),
         (IslandCellRole.Tunnel, "Tunnel entrance"),
         (IslandCellRole.Cavern, "Cavern"),
@@ -38,13 +29,34 @@ public static class OverworldLandmarkCatalog
         }
 
         ref IslandCellData cell = ref plan.GetCell(x, y);
-        foreach ((IslandCellRole role, string name) in LandmarkRoles)
+        foreach (StructurePlacement structure in plan.Structures)
         {
-            if (role == IslandCellRole.VisitorCenter)
+            if (CoordinateMath.OverlapsCell(
+                    structure.GlobalOriginX,
+                    structure.GlobalOriginY,
+                    structure.Width,
+                    structure.Height,
+                    new WorldCoord(x, y)))
             {
-                continue;
+                return GetStructureName(structure.Type);
             }
+        }
 
+        foreach (RuinSite ruin in plan.RuinSites)
+        {
+            if (CoordinateMath.OverlapsCell(
+                    ruin.GlobalOriginX,
+                    ruin.GlobalOriginY,
+                    ruin.Width,
+                    ruin.Height,
+                    new WorldCoord(x, y)))
+            {
+                return ruin.Kind == RuinKind.WarFortification ? "Fortification" : "Ruins";
+            }
+        }
+
+        foreach ((IslandCellRole role, string name) in SiteRoles)
+        {
             if (cell.Role.HasFlag(role))
             {
                 return name;
@@ -80,6 +92,77 @@ public static class OverworldLandmarkCatalog
         var landmarks = new List<OverworldLandmark>();
         var nameCounts = new Dictionary<string, int>(StringComparer.Ordinal);
 
+        foreach (StructurePlacement structure in plan.Structures)
+        {
+            if (!IsFootprintExplored(overworld, structure.GlobalOriginX, structure.GlobalOriginY, structure.Width, structure.Height))
+            {
+                continue;
+            }
+
+            string baseName = GetStructureName(structure.Type);
+            AddLandmark(
+                landmarks,
+                nameCounts,
+                structure.GlobalOriginX,
+                structure.GlobalOriginY,
+                structure.Width,
+                structure.Height,
+                baseName,
+                OverworldLandmarkKind.Structure,
+                ResolveObjectiveKind(scenario, structure.GlobalOriginX, structure.GlobalOriginY, structure.Width, structure.Height));
+        }
+
+        foreach (RuinSite ruin in plan.RuinSites)
+        {
+            if (!IsFootprintExplored(overworld, ruin.GlobalOriginX, ruin.GlobalOriginY, ruin.Width, ruin.Height))
+            {
+                continue;
+            }
+
+            string baseName = ruin.Kind == RuinKind.WarFortification ? "Fortification" : "Ruins";
+            AddLandmark(
+                landmarks,
+                nameCounts,
+                ruin.GlobalOriginX,
+                ruin.GlobalOriginY,
+                ruin.Width,
+                ruin.Height,
+                baseName,
+                OverworldLandmarkKind.Ruin,
+                ResolveObjectiveKind(scenario, ruin.GlobalOriginX, ruin.GlobalOriginY, ruin.Width, ruin.Height));
+        }
+
+        foreach (VolcanicSite site in plan.VolcanicSites)
+        {
+            var coord = new WorldCoord(site.X, site.Y);
+            if (!overworld.Explored[overworld.GetIndex(coord)])
+            {
+                continue;
+            }
+
+            string baseName = site.Origin switch
+            {
+                VolcanicOrigin.MantlePlume => "Hotspot vent",
+                VolcanicOrigin.SubductionArc => "Volcanic arc",
+                VolcanicOrigin.RiftVolcano => "Rift volcano",
+                VolcanicOrigin.CollisionVolcanism => "Collision peak",
+                _ => "Volcanic vent"
+            };
+
+            int globalX = site.X * LocalMap.Width + LocalMap.Width / 2;
+            int globalY = site.Y * LocalMap.Height + LocalMap.Height / 2;
+            AddLandmark(
+                landmarks,
+                nameCounts,
+                globalX,
+                globalY,
+                1,
+                1,
+                baseName,
+                OverworldLandmarkKind.Volcanic,
+                ResolveObjectiveKind(scenario, globalX, globalY, 1, 1));
+        }
+
         for (int y = 0; y < plan.Height; y++)
         {
             for (int x = 0; x < plan.Width; x++)
@@ -90,21 +173,28 @@ public static class OverworldLandmarkCatalog
                     continue;
                 }
 
-                string baseName = GetName(plan, x, y);
-                if (baseName.Length == 0)
+                ref IslandCellData cell = ref plan.GetCell(x, y);
+                foreach ((IslandCellRole role, string name) in SiteRoles)
                 {
-                    continue;
+                    if (!cell.Role.HasFlag(role))
+                    {
+                        continue;
+                    }
+
+                    int globalX = x * LocalMap.Width + LocalMap.Width / 2;
+                    int globalY = y * LocalMap.Height + LocalMap.Height / 2;
+                    AddLandmark(
+                        landmarks,
+                        nameCounts,
+                        globalX,
+                        globalY,
+                        1,
+                        1,
+                        name,
+                        OverworldLandmarkKind.Site,
+                        ResolveObjectiveKind(scenario, globalX, globalY, 1, 1));
+                    break;
                 }
-
-                int count = nameCounts.GetValueOrDefault(baseName) + 1;
-                nameCounts[baseName] = count;
-                string displayName = count > 1 ? $"{baseName} {count}" : baseName;
-
-                landmarks.Add(new OverworldLandmark(
-                    coord.X,
-                    coord.Y,
-                    displayName,
-                    ResolveObjectiveKind(scenario, coord)));
             }
         }
 
@@ -157,12 +247,80 @@ public static class OverworldLandmarkCatalog
         return false;
     }
 
-    private static OverworldLandmarkObjectiveKind ResolveObjectiveKind(RunScenario? scenario, WorldCoord coord)
+    private static void AddLandmark(
+        List<OverworldLandmark> landmarks,
+        Dictionary<string, int> nameCounts,
+        int globalOriginX,
+        int globalOriginY,
+        int width,
+        int height,
+        string baseName,
+        OverworldLandmarkKind kind,
+        OverworldLandmarkObjectiveKind objectiveKind)
+    {
+        int count = nameCounts.GetValueOrDefault(baseName) + 1;
+        nameCounts[baseName] = count;
+        string displayName = count > 1 ? $"{baseName} {count}" : baseName;
+
+        landmarks.Add(new OverworldLandmark(
+            globalOriginX,
+            globalOriginY,
+            width,
+            height,
+            displayName,
+            objectiveKind,
+            kind));
+    }
+
+    private static bool IsFootprintExplored(Overworld overworld, int globalOriginX, int globalOriginY, int width, int height)
+    {
+        int minCellX = globalOriginX / LocalMap.Width;
+        int minCellY = globalOriginY / LocalMap.Height;
+        int maxCellX = (globalOriginX + width - 1) / LocalMap.Width;
+        int maxCellY = (globalOriginY + height - 1) / LocalMap.Height;
+
+        for (int cellY = minCellY; cellY <= maxCellY; cellY++)
+        {
+            for (int cellX = minCellX; cellX <= maxCellX; cellX++)
+            {
+                var coord = new WorldCoord(cellX, cellY);
+                if (overworld.Contains(coord) && overworld.Explored[overworld.GetIndex(coord)])
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private static string GetStructureName(StructureType type) => type switch
+    {
+        StructureType.VisitorCenter => "Visitor Center",
+        StructureType.Dock => "Dock",
+        StructureType.Helipad => "Helipad",
+        StructureType.Hotel => "Hotel",
+        StructureType.Restaurant => "Restaurant",
+        StructureType.Attraction => "Attraction",
+        StructureType.MaintenanceCompound => "Maintenance compound",
+        _ => "Structure"
+    };
+
+    private static OverworldLandmarkObjectiveKind ResolveObjectiveKind(
+        RunScenario? scenario,
+        int globalOriginX,
+        int globalOriginY,
+        int width,
+        int height)
     {
         if (scenario is null)
         {
             return OverworldLandmarkObjectiveKind.None;
         }
+
+        int centerX = (globalOriginX + width / 2) / LocalMap.Width;
+        int centerY = (globalOriginY + height / 2) / LocalMap.Height;
+        var coord = new WorldCoord(centerX, centerY);
 
         if (scenario.EscapeTarget == coord)
         {
@@ -213,31 +371,6 @@ public static class OverworldLandmarkCatalog
         return null;
     }
 
-    private static bool TryResolveStructureEntry(
-        StructurePlacement structure,
-        WorldCoord worldCell,
-        LocalMap map,
-        out LocalCoord entryPoint)
-    {
-        entryPoint = default;
-
-        int doorGlobalX = structure.GlobalOriginX + structure.Width / 2;
-        int doorGlobalY = structure.GlobalOriginY + structure.Height - 1;
-
-        if (structure.Type == StructureType.Helipad)
-        {
-            doorGlobalX = structure.GlobalOriginX + structure.Width / 2;
-            doorGlobalY = structure.GlobalOriginY + structure.Height / 2;
-        }
-        else if (structure.Type == StructureType.Dock)
-        {
-            doorGlobalX = structure.GlobalOriginX + structure.Width / 2;
-            doorGlobalY = structure.GlobalOriginY + structure.Height - 1;
-        }
-
-        return TryGlobalToLocal(worldCell, map, doorGlobalX, doorGlobalY, out entryPoint);
-    }
-
     private static bool TryResolveRuinEntry(
         RuinSite ruin,
         WorldCoord worldCell,
@@ -272,7 +405,14 @@ public static class OverworldLandmarkCatalog
 }
 
 public readonly record struct OverworldLandmark(
-    int X,
-    int Y,
+    int GlobalOriginX,
+    int GlobalOriginY,
+    int Width,
+    int Height,
     string Name,
-    OverworldLandmarkObjectiveKind ObjectiveKind);
+    OverworldLandmarkObjectiveKind ObjectiveKind,
+    OverworldLandmarkKind Kind)
+{
+    public int X => (GlobalOriginX + Width / 2) / LocalMap.Width;
+    public int Y => (GlobalOriginY + Height / 2) / LocalMap.Height;
+}

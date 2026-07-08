@@ -16,6 +16,13 @@ internal static class CellVisibilityTint
         Color exploredDimColor,
         Color hazardTravelColor)
     {
+        if (snapshot.DebugFullBrightness &&
+            snapshot.ExploredTiles is not null &&
+            !snapshot.ExploredTiles[index])
+        {
+            return unseenColor;
+        }
+
         if (snapshot.VisibleTiles is not null &&
             snapshot.ExploredTiles is not null)
         {
@@ -24,7 +31,7 @@ internal static class CellVisibilityTint
                 return unseenColor;
             }
 
-            if (!snapshot.VisibleTiles[index])
+            if (!snapshot.DebugFullBrightness && !snapshot.VisibleTiles[index])
             {
                 return Color.Lerp(baseTint, exploredDimColor, 0.65f);
             }
@@ -52,6 +59,11 @@ internal static class CellVisibilityTint
 
     public static Color ApplyFog(RenderSnapshot snapshot, int index, Color color, Color exploredDimColor)
     {
+        if (snapshot.DebugFullBrightness)
+        {
+            return color;
+        }
+
         if (snapshot.VisibleTiles is not null &&
             snapshot.ExploredTiles is not null &&
             snapshot.ExploredTiles[index] &&

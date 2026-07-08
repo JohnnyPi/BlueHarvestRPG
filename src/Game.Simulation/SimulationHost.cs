@@ -24,6 +24,8 @@ public sealed class SimulationHost
     private ushort[]? _cellBuffer;
     private byte[]? _tectonicBuffer;
     private byte[]? _riverEdgeBuffer;
+    private byte[]? _roadEdgeBuffer;
+    private bool[]? _roadCellBuffer;
     private EntityRenderData[]? _entityBuffer;
     private bool[]? _visibleBuffer;
     private bool[]? _exploredBuffer;
@@ -501,9 +503,10 @@ public sealed class SimulationHost
             _visibleBuffer = new bool[size];
         }
 
+        bool debugFullBrightness = Session.DebugRevealAll;
         for (int i = 0; i < size; i++)
         {
-            _visibleBuffer[i] = Session.VisibleTiles[i];
+            _visibleBuffer[i] = debugFullBrightness || Session.VisibleTiles[i];
         }
 
         return new RenderSnapshot(
@@ -538,6 +541,9 @@ public sealed class SimulationHost
             OverworldLandmarks: BuildOverworldLandmarks(),
             TectonicBoundaries: BuildTectonicBoundaries(),
             RiverEdgeMask: BuildRiverEdgeMask(),
+            RoadEdgeMask: BuildRoadEdgeMask(),
+            RoadCells: BuildRoadCells(),
+            DebugFullBrightness: debugFullBrightness,
             RunOutcome: Session.Outcome,
             EscapeEnding: Session.EscapeEnding,
             RunEndTitle: Session.RunEndTitle,
@@ -554,9 +560,12 @@ public sealed class SimulationHost
 
         return OverworldLandmarkCatalog.CollectExploredLandmarks(Overworld, Session.RunScenario)
             .Select(landmark => new OverworldLandmarkView(
-                landmark.X,
-                landmark.Y,
+                landmark.GlobalOriginX,
+                landmark.GlobalOriginY,
+                landmark.Width,
+                landmark.Height,
                 landmark.Name,
+                landmark.Kind,
                 landmark.ObjectiveKind))
             .ToArray();
     }
@@ -608,6 +617,59 @@ public sealed class SimulationHost
         }
 
         return _riverEdgeBuffer;
+    }
+
+    private byte[]? BuildRoadEdgeMask()
+    {
+        int size = Overworld.Width * Overworld.Height;
+        _roadEdgeBuffer ??= new byte[size];
+        if (_roadEdgeBuffer.Length != size)
+        {
+            _roadEdgeBuffer = new byte[size];
+        }
+
+        int index = 0;
+        for (int y = 0; y < Overworld.Height; y++)
+        {
+            for (int x = 0; x < Overworld.Width; x++)
+            {
+                ConnectionFlags flags = Overworld.GetCellValue(new WorldCoord(x, y)).ConnectionFlags;
+                _roadEdgeBuffer[index++] = (byte)((ushort)flags & 0x0F);
+            }
+        }
+
+        return _roadEdgeBuffer;
+    }
+
+    private bool[]? BuildRoadCells()
+    {
+        if (Overworld.IslandPlan is null)
+        {
+            return null;
+        }
+
+        int size = Overworld.Width * Overworld.Height;
+        _roadCellBuffer ??= new bool[size];
+        if (_roadCellBuffer.Length != size)
+        {
+            _roadCellBuffer = new bool[size];
+        }
+
+        Array.Clear(_roadCellBuffer, 0, size);
+
+        IslandPlan plan = Overworld.IslandPlan;
+        for (int y = 0; y < plan.Height; y++)
+        {
+            for (int x = 0; x < plan.Width; x++)
+            {
+                if ((plan.GetCell(x, y).Role & IslandCellRole.Road) != 0)
+                {
+                    _roadCellBuffer[Overworld.GetIndex(new WorldCoord(x, y))] = true;
+                }
+            }
+        }
+
+        return _roadCellBuffer;
     }
 
     private RenderSnapshot BuildLocalMapSnapshot()

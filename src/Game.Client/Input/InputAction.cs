@@ -28,4 +28,5 @@ public enum InputAction
     OpenInventory,
     OpenCharacterSheet,
     ToggleDebug,
+    RevealMap,
 }

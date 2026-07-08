@@ -10,11 +10,12 @@ public static class RegionBiomeStage
 {
     private const uint StageSalt = 3;
 
-    public static void Execute(IslandPlan plan, IslandDefinition config, ulong seed)
+    public static void Execute(IslandPlan plan, IslandDefinition config, BiomeRulesDefinition biomeRules, ulong seed)
     {
-        _ = config;
         ulong stageSeed = SeedUtility.DeriveStage(seed, StageSalt);
         var random = new DeterministicRandom(stageSeed);
+        int blendCount = Math.Clamp(config.BiomeBlendNeighborCount, 1, 4);
+        var regionById = plan.Regions.ToDictionary(region => region.Id);
 
         foreach (IslandRegion region in plan.Regions)
         {
@@ -25,7 +26,7 @@ public static class RegionBiomeStage
                 continue;
             }
 
-            region.Theme = ClassifyRegionTheme(siteCell, region, random);
+            region.Theme = ClassifyRegionTheme(siteCell, region, biomeRules, random);
         }
 
         BalanceRegionThemes(plan, random);
@@ -48,13 +49,13 @@ public static class RegionBiomeStage
                     continue;
                 }
 
-                if (cell.VolcanicActivity > 0.18f || cell.Elevation > 0.9f)
+                if (IsInVolcanicCone(plan, x, y, config))
                 {
                     cell.Biome = BiomeId.Volcanic;
                     continue;
                 }
 
-                if (cell.Elevation > 0.78f)
+                if (cell.Elevation > biomeRules.MountainsMinElevation + 0.06f)
                 {
                     cell.Biome = cell.BoundaryType == PlateBoundaryType.ConvergentCollision
                         ? BiomeId.Mountains
@@ -62,12 +63,109 @@ public static class RegionBiomeStage
                     continue;
                 }
 
-                int regionId = plan.GetRegionId(x, y);
-                IslandRegion? region = plan.Regions.FirstOrDefault(r => r.Id == regionId);
-                BiomeId theme = region?.Theme ?? BiomeId.Plains;
-                cell.Biome = ApplyCellVariation(theme, cell, stageSeed, x, y);
+                if (cell.Elevation > biomeRules.HillsMinElevation + 0.10f)
+                {
+                    cell.Biome = cell.BoundaryType == PlateBoundaryType.ConvergentCollision
+                        ? BiomeId.Mountains
+                        : BiomeId.Hills;
+                    continue;
+                }
+
+                int index = y * plan.Width + x;
+                int blendBase = index * blendCount;
+                BiomeId blendedTheme = BlendRegionThemes(plan, regionById, x, y, blendBase, blendCount, cell);
+                cell.Biome = ApplyCellVariation(blendedTheme, cell, stageSeed, x, y);
             }
         }
+    }
+
+    private static bool IsInVolcanicCone(IslandPlan plan, int x, int y, IslandDefinition config)
+    {
+        if (plan.VolcanicSites.Count == 0)
+        {
+            return false;
+        }
+
+        float centerX = (plan.Width - 1) * 0.5f;
+        float maxRadius = Math.Min(centerX, (plan.Height - 1) * 0.5f);
+        float coneRadius = Math.Max(3f, maxRadius * config.VolcanicConeRadius);
+
+        foreach (VolcanicSite site in plan.VolcanicSites)
+        {
+            float dx = x - site.X;
+            float dy = y - site.Y;
+            if (dx * dx + dy * dy <= coneRadius * coneRadius)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static BiomeId BlendRegionThemes(
+        IslandPlan plan,
+        Dictionary<int, IslandRegion> regionById,
+        int x,
+        int y,
+        int blendBase,
+        int blendCount,
+        IslandCellData cell)
+    {
+        var scores = new Dictionary<BiomeId, float>();
+
+        for (int i = 0; i < blendCount; i++)
+        {
+            int regionId = plan.VoronoiBlendRegionIds.Length > blendBase + i
+                ? plan.VoronoiBlendRegionIds[blendBase + i]
+                : plan.GetRegionId(x, y);
+            float weight = plan.VoronoiBlendWeights.Length > blendBase + i
+                ? plan.VoronoiBlendWeights[blendBase + i]
+                : 1f;
+
+            if (!regionById.TryGetValue(regionId, out IslandRegion? region))
+            {
+                continue;
+            }
+
+            BiomeId theme = region.Theme;
+            scores.TryGetValue(theme, out float current);
+            scores[theme] = current + weight;
+        }
+
+        if (scores.Count == 0)
+        {
+            return BiomeId.Plains;
+        }
+
+        BiomeId best = BiomeId.Plains;
+        float bestScore = float.MinValue;
+        foreach ((BiomeId biome, float score) in scores)
+        {
+            float adjusted = score + BiomeClimateAffinity(biome, cell) * 0.15f;
+            if (adjusted > bestScore)
+            {
+                bestScore = adjusted;
+                best = biome;
+            }
+        }
+
+        return best;
+    }
+
+    private static float BiomeClimateAffinity(BiomeId biome, IslandCellData cell)
+    {
+        return biome switch
+        {
+            BiomeId.Swamp => cell.Moisture - 0.5f,
+            BiomeId.Jungle => cell.Moisture + cell.Temperature - 1f,
+            BiomeId.Plains => 0.5f - cell.Moisture,
+            BiomeId.Forest => cell.Moisture - 0.35f,
+            BiomeId.Hills => cell.Elevation - 0.5f,
+            BiomeId.Mountains => cell.Elevation - 0.7f,
+            BiomeId.Volcanic => cell.VolcanicActivity,
+            _ => 0f
+        };
     }
 
     private static void BalanceRegionThemes(IslandPlan plan, DeterministicRandom random)
@@ -83,10 +181,9 @@ public static class RegionBiomeStage
             [BiomeId.Plains] = Math.Max(1, landRegions.Count * 20 / 100),
             [BiomeId.Forest] = Math.Max(1, landRegions.Count * 18 / 100),
             [BiomeId.Jungle] = Math.Max(1, landRegions.Count * 15 / 100),
-            [BiomeId.Hills] = Math.Max(1, landRegions.Count * 12 / 100),
+            [BiomeId.Hills] = Math.Max(1, landRegions.Count * 14 / 100),
             [BiomeId.Swamp] = Math.Max(1, landRegions.Count * 10 / 100),
-            [BiomeId.Mountains] = Math.Max(1, landRegions.Count * 8 / 100),
-            [BiomeId.Volcanic] = Math.Max(1, landRegions.Count * 5 / 100),
+            [BiomeId.Mountains] = Math.Max(1, landRegions.Count * 10 / 100),
         };
 
         foreach ((BiomeId biome, int target) in targets)
@@ -110,7 +207,11 @@ public static class RegionBiomeStage
         }
     }
 
-    private static BiomeId ClassifyRegionTheme(IslandCellData siteCell, IslandRegion region, DeterministicRandom random)
+    private static BiomeId ClassifyRegionTheme(
+        IslandCellData siteCell,
+        IslandRegion region,
+        BiomeRulesDefinition biomeRules,
+        DeterministicRandom random)
     {
         float elevation = siteCell.Elevation;
         float moisture = siteCell.Moisture;
@@ -122,22 +223,22 @@ public static class RegionBiomeStage
             return regionRoll < 0.45f ? BiomeId.Jungle : BiomeId.Hills;
         }
 
-        if (siteCell.VolcanicActivity > 0.15f)
-        {
-            return BiomeId.Volcanic;
-        }
-
-        if (elevation > 0.82f)
-        {
-            return regionRoll < 0.35f ? BiomeId.Volcanic : BiomeId.Mountains;
-        }
-
-        if (elevation > 0.68f)
+        if (siteCell.VolcanicActivity > 0.25f)
         {
             return BiomeId.Hills;
         }
 
-        if (moisture > 0.75f)
+        if (elevation > biomeRules.MountainsMinElevation)
+        {
+            return BiomeId.Mountains;
+        }
+
+        if (elevation > biomeRules.HillsMinElevation)
+        {
+            return BiomeId.Hills;
+        }
+
+        if (moisture > biomeRules.SwampMinMoisture)
         {
             return BiomeId.Swamp;
         }
@@ -162,7 +263,7 @@ public static class RegionBiomeStage
             return BiomeId.Plains;
         }
 
-        if (moisture > 0.48f)
+        if (moisture > biomeRules.ForestMinMoisture)
         {
             return BiomeId.Forest;
         }

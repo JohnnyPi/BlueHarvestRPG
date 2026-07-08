@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <RollForward>Major</RollForward>
+    <PublishReadyToRun>false</PublishReadyToRun>
+    <TieredCompilation>false</TieredCompilation>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>Game.IslandPreview</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="MonoGame.Framework.WindowsDX" Version="3.8.4.1" />
+    <PackageReference Include="MonoGame.Content.Builder.Task" Version="3.8.4.1" />
+  </ItemGroup>
+  <ItemGroup>
+    <MonoGameContentReference Include="..\Game.Client\Content\Content.mgcb" Link="Content\Content.mgcb" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Game.Client\Game.Client.csproj" />
+    <ProjectReference Include="..\Game.Content\Game.Content.csproj" />
+    <ProjectReference Include="..\Game.Generation\Game.Generation.csproj" />
+    <ProjectReference Include="..\Game.Simulation\Game.Simulation.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\..\content\**\*" CopyToOutputDirectory="PreserveNewest" Link="content\%(RecursiveDir)%(Filename)%(Extension)" />
+  </ItemGroup>
+</Project>

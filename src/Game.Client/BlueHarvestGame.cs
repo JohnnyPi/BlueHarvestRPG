@@ -88,6 +88,12 @@ public sealed class BlueHarvestGame : Microsoft.Xna.Framework.Game
             DebugLog.Info(DebugMode.IsEnabled ? "Debug mode enabled." : "Debug mode disabled.");
         }
 
+        if (DebugMode.IsEnabled && frame.Pressed.Contains(InputAction.RevealMap))
+        {
+            _simulation.Session.RevealEntireOverworld();
+            DebugLog.Info("Debug reveal: entire overworld explored.");
+        }
+
         if (!_cameraCentered)
         {
             _camera.CenterOn(_snapshot.PlayerX, _snapshot.PlayerY, GraphicsDevice.Viewport.Width, GraphicsDevice.Viewport.Height);

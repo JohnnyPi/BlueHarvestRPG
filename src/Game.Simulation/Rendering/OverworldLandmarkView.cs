@@ -1,3 +1,5 @@
+using Game.Simulation.LocalMaps;
+
 namespace Game.Simulation.Rendering;
 
 public enum OverworldLandmarkObjectiveKind
@@ -7,8 +9,23 @@ public enum OverworldLandmarkObjectiveKind
     Mystery = 2
 }
 
+public enum OverworldLandmarkKind
+{
+    Structure = 0,
+    Ruin = 1,
+    Volcanic = 2,
+    Site = 3
+}
+
 public readonly record struct OverworldLandmarkView(
-    int X,
-    int Y,
+    int GlobalOriginX,
+    int GlobalOriginY,
+    int FootprintWidth,
+    int FootprintHeight,
     string Name,
-    OverworldLandmarkObjectiveKind ObjectiveKind = OverworldLandmarkObjectiveKind.None);
+    OverworldLandmarkKind Kind,
+    OverworldLandmarkObjectiveKind ObjectiveKind = OverworldLandmarkObjectiveKind.None)
+{
+    public int X => (GlobalOriginX + FootprintWidth / 2) / LocalMap.Width;
+    public int Y => (GlobalOriginY + FootprintHeight / 2) / LocalMap.Height;
+}

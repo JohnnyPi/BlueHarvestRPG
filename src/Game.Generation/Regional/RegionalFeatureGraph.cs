@@ -43,11 +43,42 @@ public static class RegionalFeatureGraph
 
         IReadOnlyList<(int X, int Y)> sources = CollectRiverSources(plan, config);
         var tracedCells = new HashSet<(int X, int Y)>();
+        int riversPlaced = 0;
 
         foreach ((int sourceX, int sourceY) in sources)
         {
+            if (riversPlaced >= config.RiverCount)
+            {
+                break;
+            }
+
+            int connectionsBefore = CountRiverConnections(world);
             TraceRiver(world, plan, sourceX, sourceY, config, tracedCells);
+            if (CountRiverConnections(world) > connectionsBefore)
+            {
+                riversPlaced++;
+            }
         }
+    }
+
+    private static int CountRiverConnections(Overworld world)
+    {
+        int count = 0;
+        for (int y = 0; y < world.Height; y++)
+        {
+            for (int x = 0; x < world.Width; x++)
+            {
+                foreach (EdgeConnection connection in world.GetEdgeConnections(new WorldCoord(x, y)))
+                {
+                    if (connection.Type == ConnectionType.River)
+                    {
+                        count++;
+                    }
+                }
+            }
+        }
+
+        return count;
     }
 
     private static List<(int X, int Y)> CollectRiverSources(IslandPlan plan, IslandDefinition config)
@@ -88,7 +119,7 @@ public static class RegionalFeatureGraph
         var selected = new List<(int X, int Y)>();
         foreach ((int x, int y, _) in candidates)
         {
-            if (selected.Count >= config.RiverCount)
+            if (selected.Count >= config.RiverCount * 3)
             {
                 break;
             }
@@ -163,13 +194,13 @@ public static class RegionalFeatureGraph
             }
 
             float drop = current.Elevation - neighbor.Elevation;
-            if (drop <= 0.0005f)
+            if (drop < 0f)
             {
                 continue;
             }
 
-            if (drop > bestDrop + 0.0001f ||
-                (MathF.Abs(drop - bestDrop) <= 0.0001f && neighbor.Moisture > bestMoisture))
+            if (drop > bestDrop + 0.00001f ||
+                (MathF.Abs(drop - bestDrop) <= 0.00001f && neighbor.Moisture > bestMoisture))
             {
                 bestDrop = drop;
                 bestMoisture = neighbor.Moisture;
@@ -177,6 +208,32 @@ public static class RegionalFeatureGraph
                 nextY = neighborY;
                 edge = direction;
                 found = true;
+            }
+        }
+
+        if (!found)
+        {
+            float lowestElevation = current.Elevation;
+            foreach ((int neighborX, int neighborY, Direction direction) in Neighbors(x, y, plan.Width, plan.Height))
+            {
+                ref IslandCellData neighbor = ref plan.GetCell(neighborX, neighborY);
+                if (!CanFlowInto(current, neighbor))
+                {
+                    continue;
+                }
+
+                if (neighbor.Elevation <= lowestElevation + 0.00001f &&
+                    (neighbor.Elevation < lowestElevation - 0.00001f ||
+                     neighbor.Moisture > bestMoisture ||
+                     !neighbor.IsLand))
+                {
+                    lowestElevation = neighbor.Elevation;
+                    bestMoisture = neighbor.Moisture;
+                    nextX = neighborX;
+                    nextY = neighborY;
+                    edge = direction;
+                    found = true;
+                }
             }
         }
 

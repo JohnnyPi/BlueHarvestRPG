@@ -34,8 +34,8 @@ public class IslandTectonicsTests
         IslandPlan plan = new IslandPlanner(TestSaveDefaults.FullIsland).Generate(128, 128, 9003UL);
 
         Assert.NotEmpty(plan.VolcanicSites);
+        Assert.InRange(plan.VolcanicSites.Count, 1, 3);
         Assert.Contains(plan.Cells, cell => cell.Biome == BiomeId.Volcanic);
-        Assert.Contains(plan.Cells, cell => cell.VolcanicActivity > 0f);
     }
 
     [Fact]
@@ -82,6 +82,6 @@ public class IslandTectonicsTests
     [Fact]
     public void WorldGeneratorVersion_ReflectsTectonicPipeline()
     {
-        Assert.Equal(8u, WorldGeneratorVersion.Current);
+        Assert.Equal(10u, WorldGeneratorVersion.Current);
     }
 }

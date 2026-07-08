@@ -565,6 +565,16 @@ public sealed class GameSession
         MarkRenderDirty();
     }
 
+    public bool DebugRevealAll { get; private set; }
+
+    public void RevealEntireOverworld()
+    {
+        OverworldExploration.RevealAll(Overworld);
+        DebugRevealAll = true;
+        UpdateVisibility();
+        MarkRenderDirty();
+    }
+
     public void AdvancePressureClock(int amount)
     {
         PressureClock.Advance(amount);

@@ -61,4 +61,9 @@ public static class OverworldExploration
             }
         }
     }
+
+    public static void RevealAll(Overworld overworld)
+    {
+        Array.Fill(overworld.Explored, true);
+    }
 }

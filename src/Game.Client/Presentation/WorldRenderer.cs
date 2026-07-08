@@ -29,6 +29,14 @@ public sealed class WorldRenderer
     private readonly Color _creatureColor = new(0xE9, 0x45, 0x60);
     private readonly Color _treeEntityColor = new(0x2E, 0xCC, 0x71);
     private readonly Color _landmarkColor = new(0xDD, 0xDD, 0xEE);
+    private readonly Color _structureLandmarkColor = new(0xE8, 0xD4, 0xA8, 200);
+    private readonly Color _visitorCenterLandmarkColor = new(0xFF, 0xD7, 0x00, 210);
+    private readonly Color _hotelLandmarkColor = new(0x6B, 0xA3, 0xD6, 210);
+    private readonly Color _dockLandmarkColor = new(0x8B, 0x5A, 0x2B, 210);
+    private readonly Color _ruinLandmarkColor = new(0x99, 0x88, 0x77, 200);
+    private readonly Color _volcanicLandmarkColor = new(0xE6, 0x6A, 0x3A, 210);
+    private readonly Color _siteLandmarkColor = new(0x7A, 0x9E, 0x6A, 180);
+    private readonly Color _roadOverlayColor = new(0xC4, 0xA8, 0x6C, 170);
     private readonly Color _escapeLandmarkColor = new(0xFF, 0xD7, 0x00);
     private readonly Color _mysteryLandmarkColor = new(0x5D, 0xCB, 0xFF);
     private readonly Color _unseenColor = new(0, 0, 0, 255);
@@ -123,7 +131,8 @@ public sealed class WorldRenderer
         UiManager? uiManager,
         int mouseX,
         int mouseY,
-        DebugFrameStats? debugStats = null)
+        DebugFrameStats? debugStats = null,
+        bool drawHelpText = true)
     {
         _graphicsDevice.Clear(new Color(0x1A, 0x1A, 0x2E));
         _spriteBatch.Begin(samplerState: SamplerState.PointClamp);
@@ -132,14 +141,16 @@ public sealed class WorldRenderer
 
         if (_font is not null)
         {
-            var viewport = _graphicsDevice.Viewport;
-            _spriteBatch.DrawString(
-                _font,
-                "HJKL/numpad move | WASD/arrows pan | Space wait | I inventory | U character | Esc menu | F5 save | Right-click context",
-                new Vector2(8, 8),
-                Color.LightGray);
+            if (drawHelpText)
+            {
+                _spriteBatch.DrawString(
+                    _font,
+                    "HJKL/numpad move | WASD/arrows pan | Space wait | I inventory | U character | Esc menu | F5 save | Right-click context",
+                    new Vector2(8, 8),
+                    Color.LightGray);
+            }
 
-            int logY = 22;
+            int logY = drawHelpText ? 22 : 8;
             foreach (string line in snapshot.MessageLog)
             {
                 _spriteBatch.DrawString(_font, line, new Vector2(8, logY), Color.Cyan);
@@ -357,23 +368,54 @@ public sealed class WorldRenderer
                         new Rectangle(screenX, screenY, tilePixel, tilePixel),
                         tint);
                     drawRects++;
-                    continue;
+                }
+                else
+                {
+                    Color fallback = snapshot.ViewMode == GameViewMode.Overworld
+                        ? SafeBiomeColor(cellValue)
+                        : SafeTerrainColor(cellValue);
+                    fallback = CellVisibilityTint.Resolve(
+                        snapshot,
+                        x,
+                        y,
+                        index,
+                        fallback,
+                        _unseenColor,
+                        _exploredDimColor,
+                        _hazardTravelColor);
+                    DrawRect(screenX, screenY, tilePixel, tilePixel, fallback);
+                    drawRects++;
                 }
 
-                Color fallback = snapshot.ViewMode == GameViewMode.Overworld
-                    ? SafeBiomeColor(cellValue)
-                    : SafeTerrainColor(cellValue);
-                fallback = CellVisibilityTint.Resolve(
-                    snapshot,
-                    x,
-                    y,
-                    index,
-                    fallback,
-                    _unseenColor,
-                    _exploredDimColor,
-                    _hazardTravelColor);
-                DrawRect(screenX, screenY, tilePixel, tilePixel, fallback);
-                drawRects++;
+                if (snapshot.ViewMode == GameViewMode.Overworld &&
+                    snapshot.RoadCells is not null &&
+                    snapshot.RoadCells[index])
+                {
+                    Color roadTint = CellVisibilityTint.Resolve(
+                        snapshot,
+                        x,
+                        y,
+                        index,
+                        _roadOverlayColor,
+                        _unseenColor,
+                        _exploredDimColor,
+                        _hazardTravelColor);
+
+                    Texture2D? roadTexture = _tileTextures!.GetTerrain(SimTerrain.Road);
+                    if (roadTexture is not null)
+                    {
+                        _spriteBatch.Draw(
+                            roadTexture,
+                            new Rectangle(screenX, screenY, tilePixel, tilePixel),
+                            roadTint);
+                    }
+                    else
+                    {
+                        DrawRect(screenX, screenY, tilePixel, tilePixel, roadTint);
+                    }
+
+                    drawRects++;
+                }
             }
         }
 
@@ -419,12 +461,26 @@ public sealed class WorldRenderer
 
                 if (snapshot.RiverEdgeMask is not null && snapshot.RiverEdgeMask[index] != 0)
                 {
-                    drawRects += DrawRiverEdges(
+                    drawRects += DrawConnectionEdges(
                         screenX,
                         screenY,
                         cellPixel,
                         snapshot.RiverEdgeMask[index],
                         lineThickness,
+                        OverworldGeologyColors.River,
+                        snapshot,
+                        index);
+                }
+
+                if (snapshot.RoadEdgeMask is not null && snapshot.RoadEdgeMask[index] != 0)
+                {
+                    drawRects += DrawConnectionEdges(
+                        screenX,
+                        screenY,
+                        cellPixel,
+                        snapshot.RoadEdgeMask[index],
+                        lineThickness,
+                        OverworldGeologyColors.Road,
                         snapshot,
                         index);
                 }
@@ -436,16 +492,17 @@ public sealed class WorldRenderer
 
     private static Color? BoundaryColor(byte boundaryType) => OverworldGeologyColors.ForBoundaryType(boundaryType);
 
-    private int DrawRiverEdges(
+    private int DrawConnectionEdges(
         int screenX,
         int screenY,
         int cellPixel,
         byte edgeMask,
         int thickness,
+        Color edgeColor,
         RenderSnapshot snapshot,
         int index)
     {
-        Color riverColor = CellVisibilityTint.ApplyFog(snapshot, index, OverworldGeologyColors.River, _exploredDimColor);
+        Color drawColor = CellVisibilityTint.ApplyFog(snapshot, index, edgeColor, _exploredDimColor);
         const byte north = 1;
         const byte east = 2;
         const byte south = 4;
@@ -454,25 +511,25 @@ public sealed class WorldRenderer
 
         if ((edgeMask & north) != 0)
         {
-            DrawRect(screenX, screenY, cellPixel, thickness, riverColor);
+            DrawRect(screenX, screenY, cellPixel, thickness, drawColor);
             drawRects++;
         }
 
         if ((edgeMask & east) != 0)
         {
-            DrawRect(screenX + cellPixel - thickness, screenY, thickness, cellPixel, riverColor);
+            DrawRect(screenX + cellPixel - thickness, screenY, thickness, cellPixel, drawColor);
             drawRects++;
         }
 
         if ((edgeMask & south) != 0)
         {
-            DrawRect(screenX, screenY + cellPixel - thickness, cellPixel, thickness, riverColor);
+            DrawRect(screenX, screenY + cellPixel - thickness, cellPixel, thickness, drawColor);
             drawRects++;
         }
 
         if ((edgeMask & west) != 0)
         {
-            DrawRect(screenX, screenY, thickness, cellPixel, riverColor);
+            DrawRect(screenX, screenY, thickness, cellPixel, drawColor);
             drawRects++;
         }
 
@@ -481,7 +538,7 @@ public sealed class WorldRenderer
 
     private int DrawOverworldLandmarks(RenderSnapshot snapshot, CameraController camera, int cellPixel, float cellSize)
     {
-        if (_font is null || snapshot.OverworldLandmarks is not { Length: > 0 })
+        if (snapshot.OverworldLandmarks is not { Length: > 0 })
         {
             return 0;
         }
@@ -489,35 +546,105 @@ public sealed class WorldRenderer
         int drawRects = 0;
         foreach (OverworldLandmarkView landmark in snapshot.OverworldLandmarks)
         {
-            if (landmark.X < 0 || landmark.Y < 0 ||
-                landmark.X >= snapshot.GridWidth || landmark.Y >= snapshot.GridHeight)
+            if (!IsLandmarkVisible(snapshot, landmark))
             {
                 continue;
             }
 
-            int index = landmark.Y * snapshot.GridWidth + landmark.X;
-            if (CellVisibilityTint.IsUnseen(snapshot, index))
+            int anchorCellX = landmark.GlobalOriginX / LocalMap.Width;
+            int anchorCellY = landmark.GlobalOriginY / LocalMap.Height;
+            if (anchorCellX < 0 || anchorCellY < 0 ||
+                anchorCellX >= snapshot.GridWidth || anchorCellY >= snapshot.GridHeight)
             {
                 continue;
             }
 
-            Vector2 screen = camera.WorldToScreen(landmark.X, landmark.Y);
-            Color markerColor = landmark.ObjectiveKind switch
-            {
-                OverworldLandmarkObjectiveKind.Escape => _escapeLandmarkColor,
-                OverworldLandmarkObjectiveKind.Mystery => _mysteryLandmarkColor,
-                _ => _landmarkColor
-            };
+            int index = anchorCellY * snapshot.GridWidth + anchorCellX;
+            Color markerColor = ResolveLandmarkColor(landmark);
             markerColor = CellVisibilityTint.ApplyFog(snapshot, index, markerColor, _exploredDimColor);
 
-            int markerSize = Math.Max(2, cellPixel / 2);
-            int markerX = (int)screen.X + cellPixel / 2 - markerSize / 2;
-            int markerY = (int)screen.Y + cellPixel / 2 - markerSize / 2;
-            DrawRect(markerX, markerY, markerSize, markerSize, markerColor);
+            float localFracX = (landmark.GlobalOriginX % LocalMap.Width) / (float)LocalMap.Width;
+            float localFracY = (landmark.GlobalOriginY % LocalMap.Height) / (float)LocalMap.Height;
+            float widthFrac = landmark.FootprintWidth / (float)LocalMap.Width;
+            float heightFrac = landmark.FootprintHeight / (float)LocalMap.Height;
+
+            Vector2 screen = camera.WorldToScreen(anchorCellX, anchorCellY);
+            int rectX = (int)Math.Round(screen.X + localFracX * cellPixel);
+            int rectY = (int)Math.Round(screen.Y + localFracY * cellPixel);
+            int rectW = Math.Max(2, (int)Math.Round(widthFrac * cellPixel));
+            int rectH = Math.Max(2, (int)Math.Round(heightFrac * cellPixel));
+
+            DrawRect(rectX, rectY, rectW, rectH, markerColor);
+            drawRects++;
+
+            int centerX = rectX + rectW / 2;
+            int centerY = rectY + rectH / 2;
+            int dotSize = Math.Max(2, cellPixel / 6);
+            DrawRect(centerX - dotSize / 2, centerY - dotSize / 2, dotSize, dotSize, markerColor * 1.2f);
             drawRects++;
         }
 
         return drawRects;
+    }
+
+    private static bool IsLandmarkVisible(RenderSnapshot snapshot, OverworldLandmarkView landmark)
+    {
+        if (snapshot.ExploredTiles is null)
+        {
+            return true;
+        }
+
+        int minCellX = landmark.GlobalOriginX / LocalMap.Width;
+        int minCellY = landmark.GlobalOriginY / LocalMap.Height;
+        int maxCellX = (landmark.GlobalOriginX + landmark.FootprintWidth - 1) / LocalMap.Width;
+        int maxCellY = (landmark.GlobalOriginY + landmark.FootprintHeight - 1) / LocalMap.Width;
+
+        for (int cellY = minCellY; cellY <= maxCellY; cellY++)
+        {
+            for (int cellX = minCellX; cellX <= maxCellX; cellX++)
+            {
+                if (cellX < 0 || cellY < 0 || cellX >= snapshot.GridWidth || cellY >= snapshot.GridHeight)
+                {
+                    continue;
+                }
+
+                int index = cellY * snapshot.GridWidth + cellX;
+                if (!CellVisibilityTint.IsUnseen(snapshot, index))
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private Color ResolveLandmarkColor(OverworldLandmarkView landmark)
+    {
+        if (landmark.ObjectiveKind == OverworldLandmarkObjectiveKind.Escape)
+        {
+            return _escapeLandmarkColor;
+        }
+
+        if (landmark.ObjectiveKind == OverworldLandmarkObjectiveKind.Mystery)
+        {
+            return _mysteryLandmarkColor;
+        }
+
+        return landmark.Kind switch
+        {
+            OverworldLandmarkKind.Structure when landmark.Name.StartsWith("Visitor Center", StringComparison.Ordinal) =>
+                _visitorCenterLandmarkColor,
+            OverworldLandmarkKind.Structure when landmark.Name.StartsWith("Hotel", StringComparison.Ordinal) =>
+                _hotelLandmarkColor,
+            OverworldLandmarkKind.Structure when landmark.Name.StartsWith("Dock", StringComparison.Ordinal) =>
+                _dockLandmarkColor,
+            OverworldLandmarkKind.Structure => _structureLandmarkColor,
+            OverworldLandmarkKind.Ruin => _ruinLandmarkColor,
+            OverworldLandmarkKind.Volcanic => _volcanicLandmarkColor,
+            OverworldLandmarkKind.Site => _siteLandmarkColor,
+            _ => _landmarkColor
+        };
     }
 
     private Color SafeBiomeColor(ushort value)

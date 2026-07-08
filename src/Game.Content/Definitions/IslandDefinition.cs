@@ -27,12 +27,15 @@ public sealed class IslandDefinition
     public float SubductionUplift { get; set; } = 0.14f;
     public float CollisionUplift { get; set; } = 0.28f;
     public float DivergentRidgeBoost { get; set; } = 0.06f;
-    public int MantlePlumeCount { get; set; } = 3;
-    public float MantlePlumeRadius { get; set; } = 0.06f;
+    public int MantlePlumeCount { get; set; } = 2;
+    public float MantlePlumeRadius { get; set; } = 0.04f;
     public float MantlePlumeIntensity { get; set; } = 0.22f;
+    public int VolcanicConeCount { get; set; } = 2;
+    public float VolcanicConeRadius { get; set; } = 0.045f;
+    public float VolcanicConeHeight { get; set; } = 0.35f;
     public float ConvergenceThreshold { get; set; } = 0.12f;
     public int RiverCount { get; set; } = 8;
-    public float RiverMinElevation { get; set; } = 0.55f;
+    public float RiverMinElevation { get; set; } = 0.40f;
     public int RiverWidth { get; set; } = 2;
     public int RiverMaxLength { get; set; } = 200;
     public int RiverHeadSpacing { get; set; } = 24;
@@ -42,4 +45,27 @@ public sealed class IslandDefinition
     public int RoadNetworkJunctionCount { get; set; } = 5;
     public int RoadWidth { get; set; } = 2;
     public bool UseLegacyRandomRoads { get; set; }
+
+    public float MaskInnerRadius { get; set; } = 0.25f;
+    public float MaskOuterRadius { get; set; } = 0.72f;
+    public float MaskNoiseLarge { get; set; } = 0.42f;
+    public float MaskNoiseMedium { get; set; } = 0.20f;
+    public float MaskNoiseFine { get; set; } = 0.08f;
+
+    public float WarpLargeStrength { get; set; } = 0.28f;
+    public float WarpMediumStrength { get; set; } = 0.12f;
+    public float WarpSmallStrength { get; set; } = 0.05f;
+
+    public float HeightMaskWeight { get; set; } = 0.55f;
+    public float HeightLargeNoiseWeight { get; set; } = 0.25f;
+    public float HeightMediumNoiseWeight { get; set; } = 0.12f;
+    public float HeightFineNoiseWeight { get; set; } = 0.05f;
+    public float HeightVoronoiRidgeWeight { get; set; } = 0.04f;
+
+    public float BiomeBlendPower { get; set; } = 2.0f;
+    public int BiomeBlendNeighborCount { get; set; } = 3;
+
+    public int ErosionIterations { get; set; } = 3;
+    public float ErosionStrength { get; set; } = 0.02f;
+    public float RiverCarveDepth { get; set; } = 0.04f;
 }

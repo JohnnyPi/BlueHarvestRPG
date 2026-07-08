@@ -18,12 +18,7 @@ public class OverworldLandmarkTests
     public void CollectExploredLandmarks_IncludesMajorSiteTypes()
     {
         Overworld overworld = new IslandWorldGenerator(TestSaveDefaults.Island).Generate(4242UL);
-        OverworldExploration.InitializeTouristMap(overworld);
-
-        foreach (WorldCoord coord in FindLandmarkCells(overworld.IslandPlan!))
-        {
-            OverworldExploration.RevealAround(overworld, coord, 0);
-        }
+        OverworldExploration.RevealAll(overworld);
 
         IReadOnlyList<OverworldLandmark> landmarks =
             OverworldLandmarkCatalog.CollectExploredLandmarks(overworld, scenario: null);
@@ -65,6 +60,7 @@ public class OverworldLandmarkTests
         Assert.Equal(GameViewMode.Overworld, snapshot.ViewMode);
         Assert.NotNull(snapshot.OverworldLandmarks);
         Assert.Contains(snapshot.OverworldLandmarks, landmark => landmark.Name.StartsWith("Dock", StringComparison.Ordinal));
+        Assert.True(snapshot.OverworldLandmarks!.First(landmark => landmark.Name.StartsWith("Dock", StringComparison.Ordinal)).FootprintWidth > 0);
     }
 
     [Fact]
@@ -89,27 +85,6 @@ public class OverworldLandmarkTests
         var host = new SimulationHost(overworld, session, repository) { IsNewGame = true };
         host.Initialize();
         return host;
-    }
-
-    private static IEnumerable<WorldCoord> FindLandmarkCells(IslandPlan plan)
-    {
-        IslandCellRole[] roles =
-        [
-            IslandCellRole.VisitorCenter,
-            IslandCellRole.Dock,
-            IslandCellRole.Helipad,
-            IslandCellRole.Maintenance,
-            IslandCellRole.Restaurant
-        ];
-
-        foreach (IslandCellRole role in roles)
-        {
-            WorldCoord? coord = FindFirstRole(plan, role);
-            if (coord is not null)
-            {
-                yield return coord.Value;
-            }
-        }
     }
 
     private static WorldCoord? FindFirstRole(IslandPlan plan, IslandCellRole role)

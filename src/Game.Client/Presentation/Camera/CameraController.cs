@@ -65,6 +65,11 @@ public sealed class CameraController
         Offset += (worldBefore - worldAfter) * CellSize;
     }
 
+    public void PanByScreenDelta(Vector2 screenDelta)
+    {
+        Offset -= screenDelta;
+    }
+
     public Vector2 ScreenToWorld(Vector2 screen)
     {
         return (screen + Offset) / CellSize;

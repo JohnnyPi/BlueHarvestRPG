@@ -24,6 +24,12 @@ public sealed class IslandPlan
 
     public IslandCellData[] Cells { get; }
     public int[] RegionIds { get; }
+    public float[] IslandMask { get; set; } = [];
+    public float[] VoronoiF1 { get; set; } = [];
+    public float[] VoronoiF2 { get; set; } = [];
+    public float[] VoronoiEdge { get; set; } = [];
+    public int[] VoronoiBlendRegionIds { get; set; } = [];
+    public float[] VoronoiBlendWeights { get; set; } = [];
     public List<IslandRegion> Regions { get; } = [];
     public List<StructurePlacement> Structures { get; } = [];
     public List<FenceRing> FenceRings { get; } = [];

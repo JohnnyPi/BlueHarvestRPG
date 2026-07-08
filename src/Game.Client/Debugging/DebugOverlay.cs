@@ -39,8 +39,14 @@ public sealed class DebugOverlay
             $"Visible cells {stats.VisibleCells}  Draw rects {stats.DrawRects}",
             $"Snapshot rebuilds/s {stats.SnapshotRebuildsThisSecond}",
             $"GC gen0/1/2 {stats.GcGen0}/{stats.GcGen1}/{stats.GcGen2}  alloc {stats.AllocatedBytes / 1024} KB",
-            "---",
         };
+
+        if (snapshot.ViewMode == Game.Simulation.Session.GameViewMode.Overworld)
+        {
+            lines.Add("F4: reveal map");
+        }
+
+        lines.Add("---");
 
         if (!string.IsNullOrEmpty(snapshot.DebugInfo))
         {
