@@ -1,7 +1,13 @@
 ﻿biomes:
   Ocean:
     name: Ocean
-    color: "#001A4D"
+    color: "#000B24"
+  ShallowWater:
+    name: Shallow Water
+    color: "#7EC8E8"
+  Reef:
+    name: Reef
+    color: "#9CE8DC"
   Beach:
     name: Beach
     color: "#E8C872"

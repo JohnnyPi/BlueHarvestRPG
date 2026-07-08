@@ -7,7 +7,7 @@ namespace Game.IslandPreview.UI;
 
 public sealed class GenerationParameterPanel
 {
-    public const int SidebarWidth = 380;
+    public const int SidebarWidth = PreviewLayout.LeftSidebarWidth;
     private const int Padding = 10;
     private const int RowHeight = 22;
     private const int GroupHeaderHeight = 24;
@@ -35,6 +35,7 @@ public sealed class GenerationParameterPanel
     public ulong Seed { get; private set; }
     public bool GenerateRequested => _generatePressed;
     public bool IsGenerating => _isGenerating;
+    public string StatusText => _statusText;
 
     public GenerationParameterPanel(IslandDefinition defaultIsland, BiomeRulesDefinition defaultBiomeRules, ulong? initialSeed)
     {
@@ -175,7 +176,6 @@ public sealed class GenerationParameterPanel
         }
 
         int listTop = HeaderHeight;
-        int clipHeight = viewportHeight - listTop;
         string? currentGroup = null;
 
         foreach (ParameterFieldDescriptor field in ParameterFieldRegistry.All)

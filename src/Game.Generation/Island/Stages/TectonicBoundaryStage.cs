@@ -224,6 +224,11 @@ public static class TectonicBoundaryStage
                             continue;
                         }
 
+                        if (!plan.IsLand(nx, ny))
+                        {
+                            continue;
+                        }
+
                         float dist = MathF.Sqrt(dx * dx + dy * dy);
                         if (dist > UpliftFalloffRadius)
                         {

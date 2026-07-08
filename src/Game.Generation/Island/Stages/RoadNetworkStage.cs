@@ -143,7 +143,7 @@ public static class RoadNetworkStage
                 }
 
                 ref IslandCellData cell = ref plan.GetCell(x, y);
-                if (cell.IsCoast || cell.Biome is BiomeId.Ocean or BiomeId.Mountains or BiomeId.Swamp)
+                if (cell.IsCoast || cell.Biome is BiomeId.Ocean or BiomeId.ShallowWater or BiomeId.Reef or BiomeId.Mountains or BiomeId.Swamp)
                 {
                     continue;
                 }

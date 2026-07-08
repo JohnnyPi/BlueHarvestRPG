@@ -1,4 +1,5 @@
 using Game.Content.Definitions;
+using Game.Generation.Island.Fields;
 using Game.Generation.Noise;
 using Game.Simulation.Seeds;
 using Game.Simulation.World.Island;
@@ -71,7 +72,10 @@ public static class ErosionStage
                     int index = y * plan.Width + x;
                     int depositIndex = lowestY * plan.Width + lowestX;
                     deltas[index] -= transfer;
-                    deltas[depositIndex] += transfer * 0.85f;
+                    if (plan.IsLand(lowestX, lowestY))
+                    {
+                        deltas[depositIndex] += transfer * 0.85f;
+                    }
                 }
             }
 
@@ -88,6 +92,49 @@ public static class ErosionStage
         }
 
         CarveRiverPaths(plan, config, stageSeed);
+        AccumulateDrainage(plan);
+        DerivedFieldsStage.ComputeRiverInfluence(plan);
+    }
+
+    private static void AccumulateDrainage(IslandPlan plan)
+    {
+        int count = plan.Width * plan.Height;
+        plan.Drainage = new float[count];
+
+        for (int y = 0; y < plan.Height; y++)
+        {
+            for (int x = 0; x < plan.Width; x++)
+            {
+                int index = y * plan.Width + x;
+                if (!plan.IsLand(x, y))
+                {
+                    continue;
+                }
+
+                float accumulation = 1f;
+                if (plan.IsRiverCell.Length > index && plan.IsRiverCell[index])
+                {
+                    accumulation += 4f;
+                }
+
+                foreach ((int dx, int dy) in Neighbors)
+                {
+                    int nx = x + dx;
+                    int ny = y + dy;
+                    if (!plan.Contains(nx, ny) || !plan.IsLand(nx, ny))
+                    {
+                        continue;
+                    }
+
+                    if (plan.GetCell(nx, ny).Elevation >= plan.GetCell(x, y).Elevation)
+                    {
+                        accumulation += 0.25f;
+                    }
+                }
+
+                plan.Drainage[index] = accumulation;
+            }
+        }
     }
 
     private static void CarveRiverPaths(IslandPlan plan, IslandDefinition config, ulong stageSeed)
@@ -95,6 +142,12 @@ public static class ErosionStage
         if (config.RiverCount <= 0 || config.RiverCarveDepth <= 0f)
         {
             return;
+        }
+
+        int count = plan.Width * plan.Height;
+        if (plan.IsRiverCell.Length != count)
+        {
+            plan.IsRiverCell = new bool[count];
         }
 
         var sources = new List<(int X, int Y, float Score)>();
@@ -109,6 +162,11 @@ public static class ErosionStage
                 }
 
                 float score = cell.Elevation * 2f + cell.Moisture * 0.4f;
+                if (!config.UseLegacyIslandMask)
+                {
+                    score += RidgeSplineField.SampleAtCell(x, y, plan.Width, plan.Height, config.Ridges) * 1.5f;
+                }
+
                 sources.Add((x, y, score));
             }
         }
@@ -158,6 +216,7 @@ public static class ErosionStage
 
             float jitter = NoiseUtility.Fbm(stageSeed + 20, x * 0.07f, y * 0.07f, octaves: 2) * 0.01f;
             cell.Elevation = MathF.Max(config.LandElevationThreshold * 0.5f, cell.Elevation - carve - jitter);
+            plan.IsRiverCell[y * plan.Width + x] = true;
 
             if (cell.IsCoast)
             {

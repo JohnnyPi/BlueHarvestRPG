@@ -25,11 +25,23 @@ public sealed class IslandPlan
     public IslandCellData[] Cells { get; }
     public int[] RegionIds { get; }
     public float[] IslandMask { get; set; } = [];
+    public float[] CoastDistance { get; set; } = [];
+    public float[] Concavity { get; set; } = [];
     public float[] VoronoiF1 { get; set; } = [];
     public float[] VoronoiF2 { get; set; } = [];
     public float[] VoronoiEdge { get; set; } = [];
     public int[] VoronoiBlendRegionIds { get; set; } = [];
     public float[] VoronoiBlendWeights { get; set; } = [];
+    public float[] Slope { get; set; } = [];
+    public float[] Aspect { get; set; } = [];
+    public float[] Curvature { get; set; } = [];
+    public float[] Drainage { get; set; } = [];
+    public float[] RiverInfluence { get; set; } = [];
+    public float[] WaveExposure { get; set; } = [];
+    public bool[] IsRiverCell { get; set; } = [];
+    public CoastalLandform[] CoastalLandforms { get; set; } = [];
+    public List<IslandGenerationSnapshot> GenerationSnapshots { get; set; } = [];
+    public bool OceanFrameValidated { get; set; }
     public List<IslandRegion> Regions { get; } = [];
     public List<StructurePlacement> Structures { get; } = [];
     public List<FenceRing> FenceRings { get; } = [];

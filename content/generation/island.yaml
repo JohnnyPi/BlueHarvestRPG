@@ -1,11 +1,101 @@
 ﻿overworldSize: 512
 regionCount: 96
-mainIslandRadius: 0.72
-maskInnerRadius: 0.25
-maskOuterRadius: 0.72
-maskNoiseLarge: 0.42
-maskNoiseMedium: 0.20
-maskNoiseFine: 0.08
+useLegacyIslandMask: false
+
+islandShape:
+  unionSmoothness: 0.18
+  subtractSmoothness: 0.12
+  landThreshold: 0.02
+  additiveBlobs:
+    - name: north_mass
+      center: [-0.22, 0.28]
+      radius: [0.78, 0.55]
+      rotationDegrees: -8
+      strength: 1.0
+      smoothness: 0.20
+    - name: east_lobe
+      center: [0.36, 0.05]
+      radius: [0.45, 0.42]
+      rotationDegrees: 12
+      strength: 0.85
+      smoothness: 0.20
+    - name: south_taper
+      center: [-0.12, -0.50]
+      radius: [0.32, 0.62]
+      rotationDegrees: -5
+      strength: 0.75
+      smoothness: 0.18
+  subtractiveBays:
+    - name: southeast_bay
+      center: [0.58, -0.22]
+      radius: [0.34, 0.24]
+      strength: 0.75
+      smoothness: 0.12
+    - name: northeast_lagoon
+      center: [0.42, 0.38]
+      radius: [0.28, 0.17]
+      strength: 0.55
+      smoothness: 0.10
+    - name: west_cove
+      center: [-0.74, -0.10]
+      radius: [0.18, 0.25]
+      strength: 0.35
+      smoothness: 0.10
+  domainWarp:
+    frequency: 1.6
+    amplitude: 0.07
+    octaves: 3
+  coastlineDetail:
+    frequency: 5.0
+    amplitude: 0.025
+    preserveLargeBays: true
+    cellularAutomataIterations: 3
+    proceduralInletCount: 6
+
+ridges:
+  - name: main_ridge
+    points:
+      - [-0.35, 0.30]
+      - [-0.10, 0.15]
+      - [0.15, -0.05]
+      - [0.35, -0.25]
+    strength: 0.28
+    width: 0.14
+  - name: east_ridge
+    points:
+      - [0.05, 0.10]
+      - [0.22, 0.05]
+      - [0.38, 0.02]
+    strength: 0.18
+    width: 0.10
+  - name: south_ridge
+    points:
+      - [-0.05, 0.05]
+      - [-0.10, -0.20]
+      - [-0.12, -0.45]
+    strength: 0.16
+    width: 0.10
+
+shelfWidth: 0.10
+shelfDepth: 0.08
+deepOceanDepth: 0.35
+deepOceanWidth: 0.45
+beachCoastDistance: 0.04
+inlandCoastDistance: 0.08
+landCoastThreshold: 0.01
+coastalRampStrength: 0.18
+volcanicDomeStrength: 0.14
+detailNoiseWeight: 0.08
+ridgeNoiseWeight: 0.03
+seaLevel: 0.35
+
+landElevationThreshold: 0.35
+minOceanBorderCells: 24
+minLandComponentCells: 9
+satelliteIslandCount: 0
+satelliteMinRadius: 0.03
+satelliteMaxRadius: 0.07
+
 warpLargeStrength: 0.28
 warpMediumStrength: 0.12
 warpSmallStrength: 0.05
@@ -13,17 +103,25 @@ heightMaskWeight: 0.55
 heightLargeNoiseWeight: 0.25
 heightMediumNoiseWeight: 0.12
 heightFineNoiseWeight: 0.05
-heightVoronoiRidgeWeight: 0.04
+heightVoronoiRidgeWeight: 0.0
 biomeBlendPower: 2.0
 biomeBlendNeighborCount: 3
+
 erosionIterations: 3
 erosionStrength: 0.02
 riverCarveDepth: 0.04
-landElevationThreshold: 0.18
-minOceanBorderCells: 24
-satelliteIslandCount: 4
-satelliteMinRadius: 0.03
-satelliteMaxRadius: 0.07
+
+mainIslandRadius: 0.38
+maskInnerRadius: 0.25
+maskOuterRadius: 0.72
+maskNoiseLarge: 0.42
+maskNoiseMedium: 0.20
+maskNoiseFine: 0.08
+mainIslandElongation: 1.5
+mainIslandRotation: 0.6
+mainIslandCenterOffsetX: 0.06
+mainIslandCenterOffsetY: 0.10
+
 dockCount: 3
 helipadCount: 2
 hotelCount: 2
@@ -35,6 +133,7 @@ ruinCount: 5
 fortificationCount: 4
 paddockFenceRadius: 12
 tunnelCavernRadius: 4
+
 plateMotionMin: 0.50
 plateMotionMax: 1.0
 continentalCrustBias: 0.58
@@ -42,20 +141,47 @@ subductionUplift: 0.14
 collisionUplift: 0.28
 divergentRidgeBoost: 0.06
 volcanicConeCount: 2
-volcanicConeRadius: 0.045
-volcanicConeHeight: 0.35
+volcanicConeRadius: 0.038
+volcanicConeHeight: 0.55
 mantlePlumeCount: 0
 mantlePlumeRadius: 0.04
 mantlePlumeIntensity: 0.22
 convergenceThreshold: 0.08
+
 riverCount: 10
 riverMinElevation: 0.40
 riverWidth: 2
 riverMaxLength: 240
 riverHeadSpacing: 28
+
 maxWetBiomeShare: 0.32
 minElevationStdDev: 0.08
 balancePassMaxIterations: 4
+
+oceanFrame:
+  overscanScale: 1.25
+  minLandDistanceFromEdge: 40
+  minCoastDistanceFromEdge: 24
+  maxRegenerationAttempts: 8
+  maxAxisAlignedCoastRun: 20
+  edgeLinearityBand: 24
+
+biomeCoherence:
+  enabled: true
+  useEightWayNeighbors: true
+  minPatchPlains: 16
+  minPatchForest: 20
+  minPatchJungle: 28
+  minPatchSwamp: 18
+  minPatchHills: 14
+  minPatchMountains: 10
+  minPatchBeach: 2
+  minPatchVolcanic: 4
+
+biomeNoise:
+  cellFlipStrength: 0.88
+  cellDryFlipStrength: 0.18
+
 roadNetworkJunctionCount: 5
 roadWidth: 2
 useLegacyRandomRoads: false

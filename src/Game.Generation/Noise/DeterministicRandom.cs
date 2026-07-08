@@ -22,7 +22,8 @@ public sealed class DeterministicRandom
             throw new ArgumentOutOfRangeException(nameof(maxExclusive));
         }
 
-        return (int)(NextFloat() * maxExclusive);
+        int value = (int)(NextFloat() * maxExclusive);
+        return value >= maxExclusive ? maxExclusive - 1 : value;
     }
 
     private static ulong Mix(ulong value)

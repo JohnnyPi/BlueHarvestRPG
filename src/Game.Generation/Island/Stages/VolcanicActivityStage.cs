@@ -23,9 +23,9 @@ public static class VolcanicActivityStage
         float centerX = (plan.Width - 1) * 0.5f;
         float centerY = (plan.Height - 1) * 0.5f;
         float maxRadius = Math.Min(centerX, centerY);
-        float coneRadiusCells = Math.Max(3f, maxRadius * config.VolcanicConeRadius);
+        float baseRadiusCells = VolcanicConeUtility.ComputeBaseRadiusCells(plan, config);
         int border = Math.Max(0, config.MinOceanBorderCells);
-        int minSpacing = (int)(coneRadiusCells * 3.5f);
+        int minSpacing = (int)(baseRadiusCells * 4.5f);
 
         var candidates = new List<(int X, int Y, float Score)>();
         for (int y = border; y < plan.Height - border; y++)
@@ -41,7 +41,7 @@ public static class VolcanicActivityStage
                 float distFromCenter = MathF.Sqrt(
                     ((x - centerX) / maxRadius) * ((x - centerX) / maxRadius) +
                     ((y - centerY) / maxRadius) * ((y - centerY) / maxRadius));
-                if (distFromCenter > 0.62f)
+                if (distFromCenter > 0.58f)
                 {
                     continue;
                 }
@@ -70,47 +70,58 @@ public static class VolcanicActivityStage
             }
 
             placed.Add((x, y));
-            StampVolcanicCone(plan, config, x, y, coneRadiusCells);
-            plan.VolcanicSites.Add(new VolcanicSite
+
+            float aspect = 1.55f + random.NextFloat() * 0.95f;
+            float radiusX = baseRadiusCells * (0.78f + random.NextFloat() * 0.22f);
+            float radiusY = radiusX * aspect;
+            float rotation = random.NextFloat() * MathF.Tau;
+
+            var site = new VolcanicSite
             {
                 X = x,
                 Y = y,
                 Origin = VolcanicOrigin.MantlePlume,
-                Intensity = config.VolcanicConeHeight
-            });
+                Intensity = config.VolcanicConeHeight,
+                RadiusX = radiusX,
+                RadiusY = radiusY,
+                RotationRadians = rotation
+            };
+
+            StampVolcanicCone(plan, config, site);
+            plan.VolcanicSites.Add(site);
         }
     }
 
-    private static void StampVolcanicCone(
-        IslandPlan plan,
-        IslandDefinition config,
-        int centerX,
-        int centerY,
-        float radiusCells)
+    private static void StampVolcanicCone(IslandPlan plan, IslandDefinition config, VolcanicSite site)
     {
-        int radius = Math.Max(3, (int)MathF.Ceiling(radiusCells));
-        float radiusSq = radius * radius;
+        int boundX = (int)MathF.Ceiling(site.RadiusX) + 1;
+        int boundY = (int)MathF.Ceiling(site.RadiusY) + 1;
+        float cos = MathF.Cos(site.RotationRadians);
+        float sin = MathF.Sin(site.RotationRadians);
 
-        for (int dy = -radius; dy <= radius; dy++)
+        for (int dy = -boundY; dy <= boundY; dy++)
         {
-            for (int dx = -radius; dx <= radius; dx++)
+            for (int dx = -boundX; dx <= boundX; dx++)
             {
-                int x = centerX + dx;
-                int y = centerY + dy;
+                int x = site.X + dx;
+                int y = site.Y + dy;
                 if (!plan.Contains(x, y))
                 {
                     continue;
                 }
 
-                float distSq = dx * dx + dy * dy;
-                if (distSq > radiusSq)
+                float localX = dx * cos + dy * sin;
+                float localY = -dx * sin + dy * cos;
+                float norm = MathF.Sqrt(
+                    (localX / site.RadiusX) * (localX / site.RadiusX) +
+                    (localY / site.RadiusY) * (localY / site.RadiusY));
+                if (norm > 1f)
                 {
                     continue;
                 }
 
-                float dist = MathF.Sqrt(distSq) / radius;
-                float cone = 1f - dist;
-                cone *= cone;
+                float falloff = 1f - norm;
+                falloff *= falloff;
 
                 ref IslandCellData cell = ref plan.GetCell(x, y);
                 if (!cell.IsLand)
@@ -118,9 +129,32 @@ public static class VolcanicActivityStage
                     continue;
                 }
 
-                float uplift = config.VolcanicConeHeight * cone;
-                cell.Elevation = Math.Clamp(cell.Elevation + uplift, 0f, 1.25f);
-                cell.VolcanicActivity = MathF.Max(cell.VolcanicActivity, uplift * 0.85f);
+                float heightScale;
+                float activity;
+                if (norm <= VolcanicConeUtility.LavaCoreRadiusFraction)
+                {
+                    heightScale = 1.15f;
+                    activity = 0.8f + falloff * 0.2f;
+                }
+                else if (norm <= VolcanicConeUtility.MountainRingRadiusFraction)
+                {
+                    heightScale = 0.95f;
+                    activity = 0.35f + falloff * 0.25f;
+                }
+                else if (norm <= VolcanicConeUtility.HillRingRadiusFraction)
+                {
+                    heightScale = 0.55f;
+                    activity = 0.12f + falloff * 0.12f;
+                }
+                else
+                {
+                    heightScale = 0.22f;
+                    activity = 0.04f + falloff * 0.06f;
+                }
+
+                float uplift = config.VolcanicConeHeight * falloff * heightScale;
+                cell.Elevation = Math.Clamp(cell.Elevation + uplift, 0f, 1.35f);
+                cell.VolcanicActivity = MathF.Max(cell.VolcanicActivity, activity);
             }
         }
     }

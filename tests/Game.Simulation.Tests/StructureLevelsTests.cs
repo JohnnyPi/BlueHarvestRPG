@@ -53,6 +53,7 @@ public class StructureLevelsTests
     public void StructureTransition_EnterExitAndStairs()
     {
         var bundle = new ContentLoader().LoadAll();
+        TestSaveDefaults.ApplyFastOceanFrameForTests(bundle.Island);
         var catalog = bundle.CreateBlueprintCatalog();
         var generator = new LocalMapGenerator(catalog);
         Overworld world = new IslandWorldGenerator(bundle.Island, catalog).Generate(9012UL);
@@ -102,6 +103,7 @@ public class StructureLevelsTests
     public void RopeDescent_RequiresRopeItem()
     {
         var bundle = new ContentLoader().LoadAll();
+        TestSaveDefaults.ApplyFastOceanFrameForTests(bundle.Island);
         var catalog = bundle.CreateBlueprintCatalog();
         var generator = new LocalMapGenerator(catalog);
         Overworld world = new IslandWorldGenerator(bundle.Island, catalog).Generate(3456UL);
@@ -137,6 +139,7 @@ public class StructureLevelsTests
         try
         {
             var bundle = new ContentLoader().LoadAll();
+            TestSaveDefaults.ApplyFastOceanFrameForTests(bundle.Island);
             var catalog = bundle.CreateBlueprintCatalog();
             var generator = new LocalMapGenerator(catalog);
             Overworld world = new IslandWorldGenerator(bundle.Island, catalog).Generate(7890UL);

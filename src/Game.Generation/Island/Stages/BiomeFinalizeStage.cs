@@ -22,8 +22,7 @@ public static class BiomeFinalizeStage
             BiomeId.Jungle,
             BiomeId.Swamp,
             BiomeId.Forest,
-            BiomeId.Mountains,
-            BiomeId.Volcanic
+            BiomeId.Mountains
         ];
 
         BiomeBalanceHelper.EnsureBiomeFloor(plan, stageSeed);

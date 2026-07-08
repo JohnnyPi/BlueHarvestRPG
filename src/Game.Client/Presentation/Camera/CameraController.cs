@@ -7,6 +7,8 @@ namespace Game.Client.Presentation.Camera;
 public sealed class CameraController
 {
     private readonly CameraDefinition _definition;
+    private readonly float _minZoom;
+    private readonly float _maxZoom;
 
     public float Zoom { get; private set; }
     public Vector2 Offset { get; private set; }
@@ -14,16 +16,18 @@ public sealed class CameraController
     public int BaseCellSize => _definition.BaseCellSize;
     public float CellSize => _definition.BaseCellSize * Zoom;
 
-    public CameraController(CameraDefinition definition)
+    public CameraController(CameraDefinition definition, float? minZoomOverride = null, float? maxZoomOverride = null)
     {
         _definition = definition;
+        _minZoom = minZoomOverride ?? definition.MinZoom;
+        _maxZoom = maxZoomOverride ?? definition.MaxZoom;
         Zoom = 1f;
         Offset = Vector2.Zero;
     }
 
     public void Update(InputFrame frame, float deltaSeconds)
     {
-        float pan = _definition.PanSpeed * deltaSeconds / Zoom;
+        float pan = _definition.PanSpeed * deltaSeconds * Zoom;
         var move = Vector2.Zero;
 
         if (frame.Held.Contains(InputAction.PanNorth))
@@ -59,7 +63,7 @@ public sealed class CameraController
         Vector2 worldBefore = ScreenToWorld(focus);
 
         float factor = direction > 0 ? _definition.ZoomStep : 1f / _definition.ZoomStep;
-        Zoom = Math.Clamp(Zoom * factor, _definition.MinZoom, _definition.MaxZoom);
+        Zoom = Math.Clamp(Zoom * factor, _minZoom, _maxZoom);
 
         Vector2 worldAfter = ScreenToWorld(focus);
         Offset += (worldBefore - worldAfter) * CellSize;

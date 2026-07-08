@@ -12,14 +12,17 @@ public sealed class IslandWorldGenerator
 {
     private readonly IslandPlanner _planner;
     private readonly IslandDefinition _config;
+    private readonly GenerationDiagnosticsOptions _diagnostics;
 
     public IslandWorldGenerator(
         IslandDefinition config,
         StructureBlueprintCatalog? blueprintCatalog = null,
-        BiomeRulesDefinition? biomeRules = null)
+        BiomeRulesDefinition? biomeRules = null,
+        GenerationDiagnosticsOptions? diagnostics = null)
     {
         _config = config;
-        _planner = new IslandPlanner(config, blueprintCatalog, biomeRules);
+        _diagnostics = diagnostics ?? new GenerationDiagnosticsOptions();
+        _planner = new IslandPlanner(config, blueprintCatalog, biomeRules, _diagnostics);
     }
 
     public Overworld Generate(ulong seed)
@@ -30,21 +33,44 @@ public sealed class IslandWorldGenerator
 
     public Overworld Generate(int width, int height, ulong seed)
     {
-        IslandPlan plan = _planner.Generate(width, height, seed);
+        IslandPlan plan = RunStage("Island plan", () => _planner.Generate(width, height, seed));
         var world = new Overworld(width, height, seed)
         {
             IslandPlan = plan
         };
 
-        ApplyPlanToWorld(world, plan);
-        RegionalFeatureGraph.ApplyRivers(world, plan, _config);
-        FacilityRoadGraphApplier.ApplyToOverworld(world, plan, _config.RoadWidth);
+        RunStage("Apply plan to world", () => ApplyPlanToWorld(world, plan));
+        RunStage("Rivers", () => RegionalFeatureGraph.ApplyRivers(world, plan, _config));
+        RunStage("Facility roads", () => FacilityRoadGraphApplier.ApplyToOverworld(world, plan, _config.RoadWidth));
         if (_config.UseLegacyRandomRoads)
         {
-            RegionalFeatureGraph.ApplyRoads(world);
+            RunStage("Legacy roads", () => RegionalFeatureGraph.ApplyRoads(world));
         }
 
         return world;
+    }
+
+    private void RunStage(string name, Action action)
+    {
+        if (_diagnostics.Progress is IslandGenerationProgressReporter progress)
+        {
+            progress.RunStage(name, action);
+            return;
+        }
+
+        action();
+    }
+
+    private T RunStage<T>(string name, Func<T> action)
+    {
+        if (_diagnostics.Progress is IslandGenerationProgressReporter progress)
+        {
+            T result = default!;
+            progress.RunStage(name, () => result = action());
+            return result;
+        }
+
+        return action();
     }
 
     private static void ApplyPlanToWorld(Overworld world, IslandPlan plan)

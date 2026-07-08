@@ -129,6 +129,7 @@ public class EnterableCellWalkabilityTests
     public void HotelDoor_RemainsDoorTerrainAfterGeneration()
     {
         var bundle = new ContentLoader().LoadAll();
+        TestSaveDefaults.ApplyFastOceanFrameForTests(bundle.Island);
         var catalog = bundle.CreateBlueprintCatalog();
         var generator = new LocalMapGenerator(catalog);
         Overworld world = new IslandWorldGenerator(bundle.Island, catalog).Generate(9012UL);

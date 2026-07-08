@@ -11,6 +11,8 @@ public static class BiomeTraversal
         return biome switch
         {
             BiomeId.Ocean => false,
+            BiomeId.ShallowWater => false,
+            BiomeId.Reef => false,
             BiomeId.Mountains => false,
             _ => true
         };
@@ -21,6 +23,8 @@ public static class BiomeTraversal
         return biome switch
         {
             BiomeId.Ocean => int.MaxValue,
+            BiomeId.ShallowWater => int.MaxValue,
+            BiomeId.Reef => int.MaxValue,
             BiomeId.Beach => 30,
             BiomeId.Plains => 40,
             BiomeId.Forest => 50,

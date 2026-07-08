@@ -67,13 +67,20 @@ public static class RuinsStage
     private static void EnsureMinimumSites(IslandPlan plan, IslandDefinition config, ulong stageSeed)
     {
         var random = new DeterministicRandom(stageSeed ^ 0xE11DEUL);
+        int maxAttempts = plan.Width * plan.Height * 4;
+        int attempts = 0;
 
         while (plan.RuinSites.Count(s => s.Kind == RuinKind.AncientRuin) < config.RuinCount)
         {
             int x = random.NextInt(plan.Width);
             int y = random.NextInt(plan.Height);
-            if (!plan.IsLand(x, y))
+            if (!plan.Contains(x, y) || !plan.IsLand(x, y))
             {
+                if (++attempts > maxAttempts)
+                {
+                    break;
+                }
+
                 continue;
             }
 
@@ -86,14 +93,21 @@ public static class RuinsStage
             IslandPlacementHelper.MarkRole(plan, cell, IslandCellRole.Ruin);
             (int gx, int gy) = IslandPlacementHelper.CenteredOrigin(cell, 16, 16);
             plan.RuinSites.Add(new RuinSite(RuinKind.AncientRuin, gx, gy, 16, 16));
+            attempts = 0;
         }
 
+        attempts = 0;
         while (plan.RuinSites.Count(s => s.Kind == RuinKind.WarFortification) < config.FortificationCount)
         {
             int x = random.NextInt(plan.Width);
             int y = random.NextInt(plan.Height);
-            if (!plan.IsLand(x, y))
+            if (!plan.Contains(x, y) || !plan.IsLand(x, y))
             {
+                if (++attempts > maxAttempts)
+                {
+                    break;
+                }
+
                 continue;
             }
 
@@ -106,6 +120,7 @@ public static class RuinsStage
             IslandPlacementHelper.MarkRole(plan, cell, IslandCellRole.Fortification);
             (int gx, int gy) = IslandPlacementHelper.CenteredOrigin(cell, 20, 14);
             plan.RuinSites.Add(new RuinSite(RuinKind.WarFortification, gx, gy, 20, 14));
+            attempts = 0;
         }
     }
 }

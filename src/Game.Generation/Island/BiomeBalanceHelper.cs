@@ -1,3 +1,5 @@
+using Game.Content.Definitions;
+using Game.Generation.Island.Fields;
 using Game.Generation.Noise;
 using Game.Simulation.Coordinates;
 using Game.Simulation.Seeds;
@@ -8,6 +10,8 @@ namespace Game.Generation.Island;
 
 public static class BiomeBalanceHelper
 {
+    private static readonly (int Dx, int Dy)[] Neighbors = [(1, 0), (-1, 0), (0, 1), (0, -1)];
+
     public const IslandCellRole EnterableRoles =
         IslandCellRole.VisitorCenter
         | IslandCellRole.Dock
@@ -23,10 +27,7 @@ public static class BiomeBalanceHelper
         | IslandCellRole.Fortification
         | IslandCellRole.Road;
 
-    public static bool HasEnterableRole(IslandCellRole role)
-    {
-        return (role & EnterableRoles) != 0;
-    }
+    public static bool HasEnterableRole(IslandCellRole role) => (role & EnterableRoles) != 0;
 
     public static void StampFacilityBiomes(IslandPlan plan)
     {
@@ -84,8 +85,7 @@ public static class BiomeBalanceHelper
             BiomeId.Jungle,
             BiomeId.Hills,
             BiomeId.Swamp,
-            BiomeId.Mountains,
-            BiomeId.Volcanic
+            BiomeId.Mountains
         ];
 
         int minCells = Math.Max(4, (int)(landCells.Count * minShare));
@@ -95,17 +95,12 @@ public static class BiomeBalanceHelper
         {
             int current = landCells.Count(pos => plan.GetCell(pos.X, pos.Y).Biome == biome);
             int needed = minCells - current;
-            for (int i = 0; i < needed; i++)
+            if (needed <= 0)
             {
-                (int X, int Y) pick = landCells[random.NextInt(landCells.Count)];
-                ref IslandCellData cell = ref plan.GetCell(pick.X, pick.Y);
-                if (cell.IsCoast || IsProtectedLandmarkCell(plan, pick.X, pick.Y))
-                {
-                    continue;
-                }
-
-                cell.Biome = biome;
+                continue;
             }
+
+            GrowBiomePatch(plan, biome, needed, random);
         }
     }
 
@@ -133,29 +128,52 @@ public static class BiomeBalanceHelper
         }
 
         int excess = dominant.Count() - maxCells;
-        foreach ((int x, int y, BiomeId biome) in dominant.OrderBy(_ => random.NextFloat()).Take(excess))
+        BiomeId dominantBiome = dominant.Key;
+        var components = IslandQualityMetrics.FindBiomeComponents(plan, dominantBiome)
+            .OrderBy(component => component.Count)
+            .ToList();
+
+        int converted = 0;
+        foreach (List<int> component in components)
         {
-            if (IsProtectedLandmarkCell(plan, x, y))
+            if (converted >= excess)
             {
-                continue;
+                break;
             }
 
-            ref IslandCellData cell = ref plan.GetCell(x, y);
-            if (cell.VolcanicActivity > 0.2f && cell.Biome == BiomeId.Volcanic)
-            {
-                continue;
-            }
+            var borderCells = component
+                .SelectMany(index => GetBorderNeighbors(plan, index, component))
+                .Distinct()
+                .OrderBy(index => ScoreShrinkCandidate(plan, index, dominantBiome, random))
+                .ToList();
 
-            BiomeId replacement = alternatives[random.NextInt(alternatives.Length)];
-            if (replacement == biome)
+            foreach (int index in borderCells)
             {
-                replacement = BiomeId.Plains;
-            }
+                if (converted >= excess)
+                {
+                    break;
+                }
 
-            cell.Biome = replacement;
+                int x = index % plan.Width;
+                int y = index / plan.Width;
+                if (IsProtectedLandmarkCell(plan, x, y))
+                {
+                    continue;
+                }
+
+                ref IslandCellData cell = ref plan.Cells[index];
+                if (cell.VolcanicActivity > 0.2f && cell.Biome == BiomeId.Volcanic)
+                {
+                    continue;
+                }
+
+                BiomeId replacement = PickAlternative(alternatives, dominantBiome, cell, random);
+                cell.Biome = replacement;
+                converted++;
+            }
         }
 
-        return true;
+        return converted > 0;
     }
 
     public static void StampVisitorCenterPlains(IslandPlan plan, int radius = 6)
@@ -247,59 +265,249 @@ public static class BiomeBalanceHelper
             return;
         }
 
-        var wetCells = landCells
-            .Where(cell => cell.Biome is BiomeId.Swamp or BiomeId.Jungle)
-            .Select(cell => (cell.X, cell.Y, plan.GetCell(cell.X, cell.Y).Moisture))
-            .OrderBy(cell => cell.Moisture)
-            .ThenBy(_ => random.NextFloat())
-            .Take(toConvert);
-
-        foreach ((int x, int y, _) in wetCells)
+        var wetComponents = new List<List<int>>();
+        foreach (BiomeId wetBiome in new[] { BiomeId.Swamp, BiomeId.Jungle })
         {
-            if (IsProtectedLandmarkCell(plan, x, y))
+            wetComponents.AddRange(IslandQualityMetrics.FindBiomeComponents(plan, wetBiome));
+        }
+
+        wetComponents = wetComponents
+            .OrderBy(component => component.Count)
+            .ThenBy(_ => random.NextFloat())
+            .ToList();
+
+        int converted = 0;
+        foreach (List<int> component in wetComponents)
+        {
+            if (converted >= toConvert)
+            {
+                break;
+            }
+
+            if (component.Any(index => IsProtectedLandmarkCell(plan, index % plan.Width, index / plan.Width)))
             {
                 continue;
             }
 
-            ref IslandCellData cell = ref plan.GetCell(x, y);
-            cell.Biome = cell.Elevation > 0.62f ? BiomeId.Forest : BiomeId.Plains;
+            ref IslandCellData sample = ref plan.Cells[component[0]];
+            BiomeId replacement = sample.Elevation > 0.62f ? BiomeId.Forest : BiomeId.Plains;
+            foreach (int index in component)
+            {
+                if (converted >= toConvert)
+                {
+                    break;
+                }
+
+                plan.Cells[index].Biome = replacement;
+                converted++;
+            }
         }
     }
 
-    public static void InjectRelief(IslandPlan plan, float minStdDev, DeterministicRandom random)
+    public static void InjectRelief(IslandPlan plan, float minStdDev, DeterministicRandom random, IReadOnlyList<IslandRidgeDefinition> ridges)
     {
         if (MeasureLandElevationStdDev(plan) >= minStdDev)
         {
             return;
         }
 
-        List<(int X, int Y)> landCells = CollectLandCells(plan)
+        List<(int X, int Y)> candidates = CollectLandCells(plan)
             .Where(pos => !IsProtectedLandmarkCell(plan, pos.X, pos.Y))
             .Where(pos => !plan.GetCell(pos.X, pos.Y).IsCoast)
+            .OrderByDescending(pos => RidgeSplineField.SampleAtCell(pos.X, pos.Y, plan.Width, plan.Height, ridges))
+            .ThenBy(_ => random.NextFloat())
+            .Take(96)
             .ToList();
 
-        if (landCells.Count == 0)
+        if (candidates.Count == 0)
         {
             return;
         }
 
-        int injections = Math.Clamp(landCells.Count / 180, 12, 96);
+        int injections = Math.Clamp(candidates.Count / 12, 8, 48);
         for (int i = 0; i < injections; i++)
         {
-            (int x, int y) = landCells[random.NextInt(landCells.Count)];
-            ref IslandCellData cell = ref plan.GetCell(x, y);
-            cell.Elevation = Math.Min(1f, cell.Elevation + 0.10f + random.NextFloat() * 0.10f);
-            cell.TectonicUplift += 0.05f;
+            (int x, int y) = candidates[i % candidates.Count];
+            GrowReliefPatch(plan, x, y, random);
+        }
+    }
 
-            if (cell.Elevation >= 0.82f)
+    private static void GrowBiomePatch(IslandPlan plan, BiomeId biome, int needed, DeterministicRandom random)
+    {
+        var frontier = new PriorityQueue<int, float>();
+        var visited = new HashSet<int>();
+        var existing = IslandQualityMetrics.FindBiomeComponents(plan, biome)
+            .OrderByDescending(component => component.Count)
+            .FirstOrDefault();
+
+        if (existing is { Count: > 0 })
+        {
+            foreach (int index in existing)
             {
-                cell.Biome = BiomeId.Mountains;
-            }
-            else if (cell.Elevation >= 0.68f)
-            {
-                cell.Biome = BiomeId.Hills;
+                EnqueueNeighbors(plan, index, biome, frontier, visited);
             }
         }
+        else
+        {
+            (int X, int Y)? anchor = CollectLandCells(plan)
+                .OrderByDescending(pos => BiomeSuitabilityHelper.ScoreBiomeForCell(biome, plan.GetCell(pos.X, pos.Y)))
+                .ThenBy(_ => random.NextFloat())
+                .FirstOrDefault();
+
+            if (anchor is null)
+            {
+                return;
+            }
+
+            int index = anchor.Value.Y * plan.Width + anchor.Value.X;
+            plan.Cells[index].Biome = biome;
+            needed--;
+            EnqueueNeighbors(plan, index, biome, frontier, visited);
+        }
+
+        while (needed > 0 && frontier.Count > 0)
+        {
+            int index = frontier.Dequeue();
+            if (visited.Contains(index))
+            {
+                continue;
+            }
+
+            visited.Add(index);
+            int x = index % plan.Width;
+            int y = index / plan.Width;
+            if (!plan.IsLand(x, y) || plan.GetCell(x, y).IsCoast || IsProtectedLandmarkCell(plan, x, y))
+            {
+                continue;
+            }
+
+            plan.Cells[index].Biome = biome;
+            needed--;
+            EnqueueNeighbors(plan, index, biome, frontier, visited);
+        }
+    }
+
+    private static void EnqueueNeighbors(
+        IslandPlan plan,
+        int index,
+        BiomeId biome,
+        PriorityQueue<int, float> frontier,
+        HashSet<int> visited)
+    {
+        int x = index % plan.Width;
+        int y = index / plan.Width;
+        foreach ((int dx, int dy) in Neighbors)
+        {
+            int nx = x + dx;
+            int ny = y + dy;
+            if (!plan.Contains(nx, ny))
+            {
+                continue;
+            }
+
+            int neighborIndex = ny * plan.Width + nx;
+            if (visited.Contains(neighborIndex))
+            {
+                continue;
+            }
+
+            float score = BiomeSuitabilityHelper.ScoreBiomeForCell(biome, plan.GetCell(nx, ny));
+            frontier.Enqueue(neighborIndex, -score);
+        }
+    }
+
+    private static void GrowReliefPatch(IslandPlan plan, int startX, int startY, DeterministicRandom random)
+    {
+        var queue = new Queue<(int X, int Y)>();
+        queue.Enqueue((startX, startY));
+        var visited = new HashSet<(int X, int Y)> { (startX, startY) };
+        int cells = 0;
+
+        while (queue.Count > 0 && cells < 6)
+        {
+            (int x, int y) = queue.Dequeue();
+            ref IslandCellData cell = ref plan.GetCell(x, y);
+            if (!cell.IsLand || cell.IsCoast || IsProtectedLandmarkCell(plan, x, y))
+            {
+                continue;
+            }
+
+            cell.Elevation = Math.Min(1f, cell.Elevation + 0.08f + random.NextFloat() * 0.08f);
+            cell.TectonicUplift += 0.04f;
+            cell.Biome = cell.Elevation >= 0.82f ? BiomeId.Mountains : BiomeId.Hills;
+            cells++;
+
+            foreach ((int dx, int dy) in Neighbors)
+            {
+                int nx = x + dx;
+                int ny = y + dy;
+                if (!plan.Contains(nx, ny) || !visited.Add((nx, ny)))
+                {
+                    continue;
+                }
+
+                queue.Enqueue((nx, ny));
+            }
+        }
+    }
+
+    private static IEnumerable<int> GetBorderNeighbors(IslandPlan plan, int index, List<int> component)
+    {
+        var componentSet = new HashSet<int>(component);
+        int x = index % plan.Width;
+        int y = index / plan.Width;
+
+        foreach ((int dx, int dy) in Neighbors)
+        {
+            int nx = x + dx;
+            int ny = y + dy;
+            if (!plan.Contains(nx, ny))
+            {
+                continue;
+            }
+
+            int neighborIndex = ny * plan.Width + nx;
+            if (componentSet.Contains(neighborIndex))
+            {
+                yield return neighborIndex;
+            }
+        }
+    }
+
+    private static float ScoreShrinkCandidate(
+        IslandPlan plan,
+        int index,
+        BiomeId dominantBiome,
+        DeterministicRandom random)
+    {
+        ref IslandCellData cell = ref plan.Cells[index];
+        return BiomeSuitabilityHelper.ScoreBiomeForCell(dominantBiome, cell) + random.NextFloat() * 0.01f;
+    }
+
+    private static BiomeId PickAlternative(
+        BiomeId[] alternatives,
+        BiomeId dominantBiome,
+        IslandCellData cell,
+        DeterministicRandom random)
+    {
+        BiomeId best = BiomeId.Plains;
+        float bestScore = float.MinValue;
+        foreach (BiomeId candidate in alternatives)
+        {
+            if (candidate == dominantBiome)
+            {
+                continue;
+            }
+
+            float score = BiomeSuitabilityHelper.ScoreBiomeForCell(candidate, cell) + random.NextFloat() * 0.01f;
+            if (score > bestScore)
+            {
+                bestScore = score;
+                best = candidate;
+            }
+        }
+
+        return best;
     }
 
     private static List<(int X, int Y)> CollectLandCells(IslandPlan plan)

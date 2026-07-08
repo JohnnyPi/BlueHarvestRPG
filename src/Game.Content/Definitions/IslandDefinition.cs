@@ -2,12 +2,33 @@ namespace Game.Content.Definitions;
 
 public sealed class IslandDefinition
 {
+    public bool UseLegacyIslandMask { get; set; }
+    public IslandShapeDefinition IslandShape { get; set; } = IslandShapeDefaults.CreateNublar();
+    public List<IslandRidgeDefinition> Ridges { get; set; } = [.. IslandShapeDefaults.CreateNublarRidges()];
+    public float ShelfWidth { get; set; } = 0.10f;
+    public float ShelfDepth { get; set; } = 0.08f;
+    public float DeepOceanDepth { get; set; } = 0.35f;
+    public float DeepOceanWidth { get; set; } = 0.45f;
+    public float BeachCoastDistance { get; set; } = 0.04f;
+    public float InlandCoastDistance { get; set; } = 0.08f;
+    public float LandCoastThreshold { get; set; } = 0.01f;
+    public float CoastalRampStrength { get; set; } = 0.18f;
+    public float VolcanicDomeStrength { get; set; } = 0.14f;
+    public float DetailNoiseWeight { get; set; } = 0.08f;
+    public float RidgeNoiseWeight { get; set; } = 0.03f;
+    public float SeaLevel { get; set; } = 0.35f;
+
     public int OverworldSize { get; set; } = 512;
     public int RegionCount { get; set; } = 96;
     public float MainIslandRadius { get; set; } = 0.38f;
     public float LandElevationThreshold { get; set; } = 0.35f;
     public int MinOceanBorderCells { get; set; } = 24;
-    public int SatelliteIslandCount { get; set; } = 8;
+    public int SatelliteIslandCount { get; set; } = 0;
+    public int MinLandComponentCells { get; set; } = 9;
+    public float MainIslandElongation { get; set; } = 1.5f;
+    public float MainIslandRotation { get; set; } = 0.6f;
+    public float MainIslandCenterOffsetX { get; set; } = 0.06f;
+    public float MainIslandCenterOffsetY { get; set; } = 0.10f;
     public float SatelliteMinRadius { get; set; } = 0.04f;
     public float SatelliteMaxRadius { get; set; } = 0.08f;
     public int DockCount { get; set; } = 3;
@@ -42,6 +63,9 @@ public sealed class IslandDefinition
     public float MaxWetBiomeShare { get; set; } = 0.32f;
     public float MinElevationStdDev { get; set; } = 0.08f;
     public int BalancePassMaxIterations { get; set; } = 4;
+    public OceanFrameDefinition OceanFrame { get; set; } = new();
+    public BiomeCoherenceDefinition BiomeCoherence { get; set; } = new();
+    public BiomeNoiseDefinition BiomeNoise { get; set; } = new();
     public int RoadNetworkJunctionCount { get; set; } = 5;
     public int RoadWidth { get; set; } = 2;
     public bool UseLegacyRandomRoads { get; set; }

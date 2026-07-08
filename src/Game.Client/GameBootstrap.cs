@@ -123,7 +123,7 @@ public static class GameBootstrap
         }
 
         ulong seed = (ulong)DateTime.UtcNow.Ticks;
-        var islandGenerator = new IslandWorldGenerator(bundle.Island, blueprintCatalog);
+        var islandGenerator = new IslandWorldGenerator(bundle.Island, blueprintCatalog, bundle.BiomeRules);
         world = islandGenerator.Generate(seed);
 
         var newRepository = new PersistentLocalMapRepository(world, localMapGenerator);

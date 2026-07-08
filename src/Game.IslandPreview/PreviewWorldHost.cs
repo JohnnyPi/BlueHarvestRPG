@@ -1,4 +1,5 @@
 using Game.Content;
+using Game.Generation.Island;
 using Game.Generation.LocalMaps;
 using Game.Generation.WorldGen;
 using Game.IslandPreview.Generation;
@@ -28,10 +29,17 @@ public sealed class PreviewWorldHost
 
     public static Overworld GenerateWorld(GameContentBundle bundle, PreviewGenerationRequest request)
     {
+        var diagnostics = new GenerationDiagnosticsOptions
+        {
+            CaptureSnapshots = true,
+            RunQualityGate = false,
+            Progress = request.Progress,
+        };
         var generator = new IslandWorldGenerator(
             request.Island,
             bundle.CreateBlueprintCatalog(),
-            request.BiomeRules);
+            request.BiomeRules,
+            diagnostics);
         return generator.Generate(request.Seed);
     }
 

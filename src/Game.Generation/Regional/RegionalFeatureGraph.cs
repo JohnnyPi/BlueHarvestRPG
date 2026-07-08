@@ -1,4 +1,5 @@
 using Game.Content.Definitions;
+using Game.Generation.Island.Fields;
 using Game.Generation.Noise;
 using Game.Simulation.Coordinates;
 using Game.Simulation.LocalMaps;
@@ -101,6 +102,11 @@ public static class RegionalFeatureGraph
                 }
 
                 float score = cell.Elevation * 2f + cell.Moisture * 0.4f + cell.VolcanicActivity * 0.5f;
+                if (!config.UseLegacyIslandMask)
+                {
+                    score += RidgeSplineField.SampleAtCell(x, y, plan.Width, plan.Height, config.Ridges) * 1.5f;
+                }
+
                 if (cell.BoundaryType == PlateBoundaryType.Divergent)
                 {
                     score += 0.15f;
@@ -162,11 +168,27 @@ public static class RegionalFeatureGraph
             y = nextY;
 
             ref IslandCellData cell = ref plan.GetCell(x, y);
-            if (!cell.IsLand || cell.Biome is BiomeId.Ocean or BiomeId.Beach)
+            if (!cell.IsLand || cell.Biome is BiomeId.Ocean or BiomeId.Beach or BiomeId.ShallowWater or BiomeId.Reef)
             {
                 break;
             }
         }
+    }
+
+    private static float ScoreOutlet(IslandPlan plan, int x, int y, IslandCellData neighbor)
+    {
+        if (neighbor.IsLand)
+        {
+            return neighbor.Moisture;
+        }
+
+        int index = y * plan.Width + x;
+        if (plan.Concavity.Length > index)
+        {
+            return plan.Concavity[index] * 2f;
+        }
+
+        return 0f;
     }
 
     private static bool TryFindDownhillNeighbor(
@@ -180,6 +202,7 @@ public static class RegionalFeatureGraph
         ref IslandCellData current = ref plan.GetCell(x, y);
         float bestDrop = 0f;
         float bestMoisture = float.MinValue;
+        float bestOutletScore = float.MinValue;
         nextX = x;
         nextY = y;
         edge = Direction.North;
@@ -199,11 +222,15 @@ public static class RegionalFeatureGraph
                 continue;
             }
 
+            float outletScore = ScoreOutlet(plan, neighborX, neighborY, neighbor);
             if (drop > bestDrop + 0.00001f ||
-                (MathF.Abs(drop - bestDrop) <= 0.00001f && neighbor.Moisture > bestMoisture))
+                (MathF.Abs(drop - bestDrop) <= 0.00001f &&
+                 (outletScore > bestOutletScore ||
+                  (MathF.Abs(outletScore - bestOutletScore) <= 0.00001f && neighbor.Moisture > bestMoisture))))
             {
                 bestDrop = drop;
                 bestMoisture = neighbor.Moisture;
+                bestOutletScore = outletScore;
                 nextX = neighborX;
                 nextY = neighborY;
                 edge = direction;
@@ -222,13 +249,16 @@ public static class RegionalFeatureGraph
                     continue;
                 }
 
+                float outletScore = ScoreOutlet(plan, neighborX, neighborY, neighbor);
                 if (neighbor.Elevation <= lowestElevation + 0.00001f &&
                     (neighbor.Elevation < lowestElevation - 0.00001f ||
+                     outletScore > bestOutletScore ||
                      neighbor.Moisture > bestMoisture ||
                      !neighbor.IsLand))
                 {
                     lowestElevation = neighbor.Elevation;
                     bestMoisture = neighbor.Moisture;
+                    bestOutletScore = outletScore;
                     nextX = neighborX;
                     nextY = neighborY;
                     edge = direction;
@@ -261,7 +291,7 @@ public static class RegionalFeatureGraph
     {
         if (neighbor.IsLand)
         {
-            return neighbor.Biome is not BiomeId.Ocean;
+            return neighbor.Biome is not (BiomeId.Ocean or BiomeId.ShallowWater or BiomeId.Reef);
         }
 
         return current.IsCoast || current.IsLand;

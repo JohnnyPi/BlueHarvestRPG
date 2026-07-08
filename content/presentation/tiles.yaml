@@ -28,6 +28,8 @@ terrain:
 
 biomes:
   Ocean: ocean.png
+  ShallowWater: shallowwater.png
+  Reef: shallowwater.png
   Beach: sand.png
   Plains: grass.png
   Forest: taiga.png

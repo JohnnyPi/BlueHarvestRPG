@@ -32,7 +32,7 @@ public static class IslandBalanceStage
                 break;
             }
 
-            BiomeBalanceHelper.InjectRelief(plan, config.MinElevationStdDev, random);
+            BiomeBalanceHelper.InjectRelief(plan, config.MinElevationStdDev, random, config.Ridges);
         }
     }
 }

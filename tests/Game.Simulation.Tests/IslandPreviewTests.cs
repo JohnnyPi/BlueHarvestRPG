@@ -16,10 +16,28 @@ public class IslandPreviewTests
 {
     private static readonly string[] IslandParameterNames =
     [
+        nameof(IslandDefinition.UseLegacyIslandMask),
+        nameof(IslandDefinition.ShelfWidth),
+        nameof(IslandDefinition.ShelfDepth),
+        nameof(IslandDefinition.DeepOceanDepth),
+        nameof(IslandDefinition.DeepOceanWidth),
+        nameof(IslandDefinition.BeachCoastDistance),
+        nameof(IslandDefinition.InlandCoastDistance),
+        nameof(IslandDefinition.LandCoastThreshold),
+        nameof(IslandDefinition.CoastalRampStrength),
+        nameof(IslandDefinition.VolcanicDomeStrength),
+        nameof(IslandDefinition.DetailNoiseWeight),
+        nameof(IslandDefinition.RidgeNoiseWeight),
+        nameof(IslandDefinition.SeaLevel),
         nameof(IslandDefinition.OverworldSize),
         nameof(IslandDefinition.RegionCount),
         nameof(IslandDefinition.MinOceanBorderCells),
+        nameof(IslandDefinition.MinLandComponentCells),
         nameof(IslandDefinition.MainIslandRadius),
+        nameof(IslandDefinition.MainIslandElongation),
+        nameof(IslandDefinition.MainIslandRotation),
+        nameof(IslandDefinition.MainIslandCenterOffsetX),
+        nameof(IslandDefinition.MainIslandCenterOffsetY),
         nameof(IslandDefinition.MaskInnerRadius),
         nameof(IslandDefinition.MaskOuterRadius),
         nameof(IslandDefinition.MaskNoiseLarge),
@@ -90,12 +108,18 @@ public class IslandPreviewTests
     ];
 
     [Fact]
-    public void PreviewParameterCatalog_CoversAllDefinitionProperties()
+    public void PreviewParameterCatalog_CoversAllScalarDefinitionProperties()
     {
         var islandProperties = typeof(IslandDefinition)
             .GetProperties(BindingFlags.Public | BindingFlags.Instance)
             .Where(property => property.CanRead && property.CanWrite)
             .Select(property => property.Name)
+            .Where(name => name is not (
+                nameof(IslandDefinition.IslandShape)
+                or nameof(IslandDefinition.Ridges)
+                or nameof(IslandDefinition.OceanFrame)
+                or nameof(IslandDefinition.BiomeCoherence)
+                or nameof(IslandDefinition.BiomeNoise)))
             .ToHashSet(StringComparer.Ordinal);
         var biomeProperties = typeof(BiomeRulesDefinition)
             .GetProperties(BindingFlags.Public | BindingFlags.Instance)

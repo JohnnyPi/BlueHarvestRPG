@@ -104,6 +104,12 @@ public sealed class LocalMapGenerator : ILocalMapGenerator
                 case BiomeId.Ocean:
                     GenerateOcean(map, random);
                     break;
+                case BiomeId.ShallowWater:
+                    GenerateShallowWater(map, random);
+                    break;
+                case BiomeId.Reef:
+                    GenerateReef(map, random);
+                    break;
                 default:
                     GeneratePlains(map, random);
                     break;
@@ -467,23 +473,42 @@ public sealed class LocalMapGenerator : ILocalMapGenerator
         {
             for (int x = 0; x < LocalMap.Width; x++)
             {
+                map.SetTerrain(
+                    x,
+                    y,
+                    TerrainId.DeepWater,
+                    TileFlags.BlocksMovement | TileFlags.ContainsWater);
+            }
+        }
+    }
+
+    private static void GenerateShallowWater(LocalMap map, DeterministicRandom random)
+    {
+        for (int y = 0; y < LocalMap.Height; y++)
+        {
+            for (int x = 0; x < LocalMap.Width; x++)
+            {
+                map.SetTerrain(
+                    x,
+                    y,
+                    TerrainId.ShallowWater,
+                    TileFlags.BlocksMovement | TileFlags.ContainsWater);
+            }
+        }
+    }
+
+    private static void GenerateReef(LocalMap map, DeterministicRandom random)
+    {
+        for (int y = 0; y < LocalMap.Height; y++)
+        {
+            for (int x = 0; x < LocalMap.Width; x++)
+            {
                 float roll = random.NextFloat();
-                if (roll < 0.35f)
-                {
-                    map.SetTerrain(
-                        x,
-                        y,
-                        TerrainId.ShallowWater,
-                        TileFlags.BlocksMovement | TileFlags.ContainsWater);
-                }
-                else
-                {
-                    map.SetTerrain(
-                        x,
-                        y,
-                        TerrainId.DeepWater,
-                        TileFlags.BlocksMovement | TileFlags.ContainsWater);
-                }
+                map.SetTerrain(
+                    x,
+                    y,
+                    roll < 0.18f ? TerrainId.Sand : TerrainId.ShallowWater,
+                    roll < 0.18f ? TileFlags.None : TileFlags.BlocksMovement | TileFlags.ContainsWater);
             }
         }
     }

@@ -1,4 +1,5 @@
 using Game.Content.Definitions;
+using Game.Generation.Island;
 using Game.Generation.Noise;
 using Game.Simulation.Seeds;
 using Game.Simulation.World;
@@ -16,6 +17,7 @@ public static class RegionBiomeStage
         var random = new DeterministicRandom(stageSeed);
         int blendCount = Math.Clamp(config.BiomeBlendNeighborCount, 1, 4);
         var regionById = plan.Regions.ToDictionary(region => region.Id);
+        bool useCoastDistance = !config.UseLegacyIslandMask && plan.CoastDistance.Length == plan.Width * plan.Height;
 
         foreach (IslandRegion region in plan.Regions)
         {
@@ -36,20 +38,79 @@ public static class RegionBiomeStage
             for (int x = 0; x < plan.Width; x++)
             {
                 ref IslandCellData cell = ref plan.GetCell(x, y);
+                int index = y * plan.Width + x;
 
                 if (!cell.IsLand)
                 {
-                    cell.Biome = BiomeId.Ocean;
+                    if (cell.Biome is not (BiomeId.ShallowWater or BiomeId.Reef))
+                    {
+                        cell.Biome = BiomeId.Ocean;
+                    }
+
                     continue;
                 }
 
-                if (cell.IsCoast)
+                if (useCoastDistance)
+                {
+                    float coastDistance = plan.CoastDistance[index];
+                    float concavity = plan.Concavity.Length > index ? plan.Concavity[index] : 0f;
+                    float beachWidth = config.BeachCoastDistance + concavity * 0.03f;
+                    float riverInfluence = plan.RiverInfluence.Length > index ? plan.RiverInfluence[index] : 0f;
+
+                    if (coastDistance <= beachWidth)
+                    {
+                        cell.Biome = ResolveCoastalBiome(plan, index, cell);
+                        continue;
+                    }
+
+                    if (riverInfluence > 0.45f && cell.Elevation < biomeRules.HillsMinElevation && concavity > 0.05f)
+                    {
+                        cell.Biome = BiomeId.Swamp;
+                        continue;
+                    }
+
+                    if (riverInfluence > 0.35f && cell.Temperature > 0.55f && cell.Moisture > 0.5f)
+                    {
+                        cell.Biome = BiomeId.Jungle;
+                        continue;
+                    }
+
+                    if (coastDistance <= config.InlandCoastDistance + 0.03f
+                        && cell.Moisture > biomeRules.SwampMinMoisture - 0.05f
+                        && concavity > 0.1f)
+                    {
+                        cell.Biome = BiomeId.Swamp;
+                        continue;
+                    }
+                }
+                else if (cell.IsCoast)
                 {
                     cell.Biome = BiomeId.Beach;
                     continue;
                 }
 
-                if (IsInVolcanicCone(plan, x, y, config))
+                if (VolcanicConeUtility.TryGetNearestConeDistance(plan, x, y, out float coneDistance))
+                {
+                    if (coneDistance <= VolcanicConeUtility.LavaCoreRadiusFraction)
+                    {
+                        cell.Biome = BiomeId.Volcanic;
+                        continue;
+                    }
+
+                    if (coneDistance <= VolcanicConeUtility.MountainRingRadiusFraction)
+                    {
+                        cell.Biome = BiomeId.Mountains;
+                        continue;
+                    }
+
+                    if (coneDistance <= VolcanicConeUtility.HillRingRadiusFraction)
+                    {
+                        cell.Biome = BiomeId.Hills;
+                        continue;
+                    }
+                }
+
+                if (cell.VolcanicActivity > 0.2f && IsInVolcanicLavaCore(plan, x, y))
                 {
                     cell.Biome = BiomeId.Volcanic;
                     continue;
@@ -71,30 +132,18 @@ public static class RegionBiomeStage
                     continue;
                 }
 
-                int index = y * plan.Width + x;
                 int blendBase = index * blendCount;
                 BiomeId blendedTheme = BlendRegionThemes(plan, regionById, x, y, blendBase, blendCount, cell);
-                cell.Biome = ApplyCellVariation(blendedTheme, cell, stageSeed, x, y);
+                cell.Biome = ApplyCellVariation(blendedTheme, cell, stageSeed, x, y, config, plan, index);
             }
         }
     }
 
-    private static bool IsInVolcanicCone(IslandPlan plan, int x, int y, IslandDefinition config)
+    private static bool IsInVolcanicLavaCore(IslandPlan plan, int x, int y)
     {
-        if (plan.VolcanicSites.Count == 0)
-        {
-            return false;
-        }
-
-        float centerX = (plan.Width - 1) * 0.5f;
-        float maxRadius = Math.Min(centerX, (plan.Height - 1) * 0.5f);
-        float coneRadius = Math.Max(3f, maxRadius * config.VolcanicConeRadius);
-
         foreach (VolcanicSite site in plan.VolcanicSites)
         {
-            float dx = x - site.X;
-            float dy = y - site.Y;
-            if (dx * dx + dy * dy <= coneRadius * coneRadius)
+            if (VolcanicConeUtility.IsInsideLavaCore(site, x, y))
             {
                 return true;
             }
@@ -142,7 +191,7 @@ public static class RegionBiomeStage
         float bestScore = float.MinValue;
         foreach ((BiomeId biome, float score) in scores)
         {
-            float adjusted = score + BiomeClimateAffinity(biome, cell) * 0.15f;
+            float adjusted = score + BiomeSuitabilityHelper.GetClimateAffinity(biome, cell) * 0.15f;
             if (adjusted > bestScore)
             {
                 bestScore = adjusted;
@@ -154,19 +203,7 @@ public static class RegionBiomeStage
     }
 
     private static float BiomeClimateAffinity(BiomeId biome, IslandCellData cell)
-    {
-        return biome switch
-        {
-            BiomeId.Swamp => cell.Moisture - 0.5f,
-            BiomeId.Jungle => cell.Moisture + cell.Temperature - 1f,
-            BiomeId.Plains => 0.5f - cell.Moisture,
-            BiomeId.Forest => cell.Moisture - 0.35f,
-            BiomeId.Hills => cell.Elevation - 0.5f,
-            BiomeId.Mountains => cell.Elevation - 0.7f,
-            BiomeId.Volcanic => cell.VolcanicActivity,
-            _ => 0f
-        };
-    }
+        => BiomeSuitabilityHelper.GetClimateAffinity(biome, cell);
 
     private static void BalanceRegionThemes(IslandPlan plan, DeterministicRandom random)
     {
@@ -245,7 +282,7 @@ public static class RegionBiomeStage
 
         if (temperature > 0.62f && moisture > 0.58f)
         {
-            return regionRoll < 0.55f ? BiomeId.Jungle : BiomeId.Forest;
+            return regionRoll < 0.70f ? BiomeId.Jungle : BiomeId.Forest;
         }
 
         if (temperature < 0.35f && moisture > 0.55f)
@@ -271,10 +308,40 @@ public static class RegionBiomeStage
         return BiomeId.Plains;
     }
 
-    private static BiomeId ApplyCellVariation(BiomeId theme, IslandCellData cell, ulong stageSeed, int x, int y)
+    private static BiomeId ResolveCoastalBiome(IslandPlan plan, int index, IslandCellData cell)
     {
+        if (plan.CoastalLandforms.Length > index)
+        {
+            return plan.CoastalLandforms[index] switch
+            {
+                CoastalLandform.Cliff or CoastalLandform.RockyCoast or CoastalLandform.Headland => BiomeId.Hills,
+                CoastalLandform.Mangrove or CoastalLandform.Estuary or CoastalLandform.RiverMouth => BiomeId.Swamp,
+                CoastalLandform.LagoonEdge or CoastalLandform.Bay => BiomeId.Beach,
+                _ => BiomeId.Beach,
+            };
+        }
+
+        return BiomeId.Beach;
+    }
+
+    private static BiomeId ApplyCellVariation(
+        BiomeId theme,
+        IslandCellData cell,
+        ulong stageSeed,
+        int x,
+        int y,
+        IslandDefinition config,
+        IslandPlan plan,
+        int index)
+    {
+        float riverInfluence = plan.RiverInfluence.Length > index ? plan.RiverInfluence[index] : 0f;
+        if (riverInfluence > 0.4f)
+        {
+            return theme;
+        }
+
         float jitter = ValueNoise.Sample(stageSeed + 17, x * 0.11f, y * 0.11f, octaves: 2);
-        if (jitter > 0.78f)
+        if (jitter > config.BiomeNoise.CellFlipStrength)
         {
             return theme switch
             {
@@ -287,7 +354,7 @@ public static class RegionBiomeStage
             };
         }
 
-        if (jitter < 0.18f && cell.Moisture < 0.42f && cell.Elevation < 0.62f)
+        if (jitter < config.BiomeNoise.CellDryFlipStrength && cell.Moisture < 0.42f && cell.Elevation < 0.62f)
         {
             return theme is BiomeId.Forest or BiomeId.Jungle ? BiomeId.Plains : theme;
         }
