@@ -61,13 +61,7 @@ public static class IslandMaskStage
                     py /= shapeScale;
                 }
 
-                (float wx, float wy) = NoiseUtility.LowFrequencyWarp(
-                    stageSeed,
-                    px,
-                    py,
-                    shape.DomainWarp.Frequency,
-                    shape.DomainWarp.Amplitude,
-                    shape.DomainWarp.Octaves);
+                (float wx, float wy) = ApplyShapeDomainWarp(stageSeed, px, py, shape);
 
                 float sdf = ShapeFieldComposer.EvaluateIslandSdf(
                     wx,
@@ -75,7 +69,8 @@ public static class IslandMaskStage
                     shape.AdditiveBlobs,
                     shape.SubtractiveBays,
                     shape.UnionSmoothness,
-                    shape.SubtractSmoothness);
+                    shape.SubtractSmoothness,
+                    stageSeed);
 
                 float shoreBand = shape.CoastlineDetail.Amplitude * 4f;
                 if (MathF.Abs(sdf) < shoreBand)
@@ -85,15 +80,19 @@ public static class IslandMaskStage
                         wx * shape.CoastlineDetail.Frequency,
                         wy * shape.CoastlineDetail.Frequency,
                         octaves: 2);
+                    float ruggedness = NoiseUtility.Fbm(stageSeed + 70, wx * 0.5f, wy * 0.5f, octaves: 2);
+                    float ruggednessScale = 0.3f + 1.4f * ruggedness;
                     float detailScale = shape.CoastlineDetail.PreserveLargeBays
                         ? NoiseUtility.SmoothStep(shoreBand, 0f, MathF.Abs(sdf))
                         : 1f;
-                    sdf += (detail - 0.5f) * shape.CoastlineDetail.Amplitude * detailScale;
+                    // Bias toward erosion (subtract land) rather than symmetric growth.
+                    float detailBias = detail - 0.55f;
+                    sdf += detailBias * shape.CoastlineDetail.Amplitude * detailScale * ruggednessScale;
                 }
 
                 foreach (IslandBlobDefinition satellite in satelliteBlobs)
                 {
-                    float satSdf = EllipseSdf.Evaluate(wx, wy, satellite);
+                    float satSdf = EllipseSdf.Evaluate(wx, wy, satellite, stageSeed + 200);
                     sdf = ShapeFieldComposer.SmoothUnion(sdf, satSdf, satellite.Smoothness);
                 }
 
@@ -145,6 +144,35 @@ public static class IslandMaskStage
         }
 
         return blobs;
+    }
+
+    private static (float X, float Y) ApplyShapeDomainWarp(ulong stageSeed, float px, float py, IslandShapeDefinition shape)
+    {
+        IslandDomainWarpDefinition warp = shape.DomainWarp;
+
+        (float wx, float wy) = NoiseUtility.LowFrequencyWarp(
+            stageSeed,
+            px,
+            py,
+            warp.LobingFrequency,
+            warp.LobingAmplitude,
+            warp.Octaves);
+
+        (wx, wy) = NoiseUtility.LowFrequencyWarp(
+            stageSeed + 20,
+            wx,
+            wy,
+            warp.Frequency,
+            warp.Amplitude,
+            warp.Octaves);
+
+        return NoiseUtility.DomainWarp(
+            stageSeed + 40,
+            wx,
+            wy,
+            warp.LargeStrength,
+            warp.MediumStrength,
+            warp.SmallStrength);
     }
 
     private static void ExecuteLegacy(IslandPlan plan, IslandDefinition config, ulong seed)

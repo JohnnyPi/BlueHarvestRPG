@@ -119,9 +119,12 @@ public class OverworldTravelTests
             "autosave",
             new LocalMapGenerator(),
             TestSaveDefaults.Island,
+            TestSaveDefaults.BlueprintCatalog,
+            TestSaveDefaults.BiomeRules,
             TestSaveDefaults.RulesHash,
             out _,
             out GameSession loadedSession,
+            out _,
             out _,
             out string? failureReason);
 

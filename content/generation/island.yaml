@@ -42,15 +42,21 @@ islandShape:
       strength: 0.35
       smoothness: 0.10
   domainWarp:
+    lobingFrequency: 0.8
+    lobingAmplitude: 0.22
     frequency: 1.6
-    amplitude: 0.07
+    amplitude: 0.12
     octaves: 3
+    largeStrength: 0.14
+    mediumStrength: 0.10
+    smallStrength: 0.04
   coastlineDetail:
     frequency: 5.0
     amplitude: 0.025
     preserveLargeBays: true
-    cellularAutomataIterations: 3
-    proceduralInletCount: 6
+    cellularAutomataIterations: 1
+    proceduralInletCount: 0
+    preferRiverMouthInlets: true
 
 ridges:
   - name: main_ridge

@@ -9,6 +9,7 @@ using Game.Simulation.Coordinates;
 using Game.Simulation.Entities;
 using Game.Simulation.Factions;
 using Game.Simulation.LocalMaps;
+using Game.Simulation.Perception;
 using Game.Simulation.Session;
 using Game.Simulation.Time;
 using Game.Simulation.World;
@@ -64,6 +65,7 @@ public class RaptorBehaviorTests
         map.SetTerrain(6, 5, TerrainId.Fence, TileFlags.BlocksMovement);
         Entity raptor = CreateRaptor(session, new LocalCoord(5, 5));
         raptor.Raptor!.Phase = RaptorPhase.ProbeFence;
+        SetEngaged(raptor, session.PlayerLocalPosition);
 
         RaptorBehavior.TryAct(raptor, session, map, worldTime: 0);
         RaptorBehavior.TryAct(raptor, session, map, worldTime: 1);
@@ -83,6 +85,7 @@ public class RaptorBehaviorTests
         Entity raptor = CreateRaptor(session, new LocalCoord(10, 10));
         raptor.Raptor!.Phase = RaptorPhase.Retreat;
         raptor.Raptor.AmbushCooldown = 1;
+        SetEngaged(raptor, session.PlayerLocalPosition);
 
         RaptorBehavior.TryAct(raptor, session, map, worldTime: 0);
 
@@ -99,6 +102,7 @@ public class RaptorBehaviorTests
 
         session.PlayerLocalPosition = new LocalCoord(6, 5);
         Entity raptor = CreateRaptor(session, new LocalCoord(5, 5));
+        SetEngaged(raptor, session.PlayerLocalPosition);
         LocalCoord start = raptor.LocalPosition;
 
         RaptorBehavior.TryAct(raptor, session, map, worldTime: 0);
@@ -135,10 +139,13 @@ public class RaptorBehaviorTests
             "raptor",
             localGenerator,
             TestSaveDefaults.Island,
+            TestSaveDefaults.BlueprintCatalog,
+            TestSaveDefaults.BiomeRules,
             TestSaveDefaults.RulesHash,
             out Overworld loadedWorld,
             out GameSession loadedSession,
             out InMemoryLocalMapRepository loadedRepository,
+            out _,
             out _);
 
         Assert.True(loaded);
@@ -182,10 +189,18 @@ public class RaptorBehaviorTests
             Actor = new ActorTurnState { Speed = 130, Energy = 100 },
             MaxHealth = 24,
             Health = 24,
-            Raptor = new RaptorMemory { Phase = RaptorPhase.Stalk }
+            Raptor = new RaptorMemory { Phase = RaptorPhase.Stalk },
+            Perception = new PerceptionState()
         };
         map.Entities.Add(raptor);
         return raptor;
+    }
+
+    private static void SetEngaged(Entity raptor, LocalCoord playerPosition)
+    {
+        raptor.Perception ??= new PerceptionState();
+        raptor.Perception.Awareness = AwarenessLevel.Engaged;
+        raptor.Perception.LastKnownPosition = playerPosition;
     }
 
     private static GameSession CreateSession()

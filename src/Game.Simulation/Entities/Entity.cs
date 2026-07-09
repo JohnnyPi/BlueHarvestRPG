@@ -1,6 +1,9 @@
 using Game.Simulation.AI;
+using Game.Simulation.Combat;
 using Game.Simulation.Coordinates;
+using Game.Simulation.Ecology;
 using Game.Simulation.Factions;
+using Game.Simulation.Perception;
 using Game.Simulation.Time;
 using Game.Simulation.World;
 
@@ -22,6 +25,14 @@ public sealed class Entity
     public int Health { get; set; }
 
     public RaptorMemory? Raptor { get; set; }
+
+    public PerceptionState? Perception { get; set; }
+
+    public CreatureDriveState? Drive { get; set; }
+
+    public StatusEffectList? StatusEffects { get; set; }
+
+    public int ImmobilizedTurns { get; set; }
 
     public bool IsAlive => MaxHealth <= 0 || Health > 0;
 }

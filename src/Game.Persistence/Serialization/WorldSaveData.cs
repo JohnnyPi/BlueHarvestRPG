@@ -1,9 +1,12 @@
 using System.Text.Json;
 using Game.Simulation.AI;
+using Game.Simulation.Combat;
 using Game.Simulation.Coordinates;
+using Game.Simulation.Ecology;
 using Game.Simulation.Entities;
 using Game.Simulation.Factions;
 using Game.Simulation.LocalMaps;
+using Game.Simulation.Perception;
 using Game.Simulation.Time;
 using Game.Simulation.World;
 
@@ -26,6 +29,15 @@ public sealed class EntitySaveData
     public int? RaptorPhase { get; init; }
     public int? RaptorAmbushCooldown { get; init; }
     public bool? RaptorAnnouncedFenceProbe { get; init; }
+    public int? PerceptionAwareness { get; init; }
+    public int? LastKnownX { get; init; }
+    public int? LastKnownY { get; init; }
+    public int? InvestigateTurnsRemaining { get; init; }
+    public int? TurnsWithoutSight { get; init; }
+    public int? ImmobilizedTurns { get; init; }
+    public int? BleedingTurns { get; init; }
+    public int? LimpingTurns { get; init; }
+    public string? SpriteId { get; init; }
 }
 
 public sealed class LocalMapSaveData
@@ -37,6 +49,7 @@ public sealed class LocalMapSaveData
     public ushort[] Terrain { get; init; } = [];
     public byte[] Flags { get; init; } = [];
     public bool[]? Explored { get; init; }
+    public byte[]? Scent { get; init; }
     public List<EntitySaveData>? Entities { get; init; }
 }
 
@@ -83,7 +96,7 @@ public sealed class MovementStepSaveData
 
 public sealed class WorldSaveData
 {
-    public const int FormatVersion = 9;
+    public const int FormatVersion = 10;
 
     public int FormatVersionNumber { get; init; } = FormatVersion;
     public uint GeneratorVersion { get; init; }
@@ -100,6 +113,7 @@ public sealed class WorldSaveData
     public int? PlayerHealth { get; init; }
     public int? PlayerMaxHealth { get; init; }
     public long? WorldTime { get; init; }
+    public int? MovementMode { get; init; }
     public List<string> MessageLog { get; init; } = [];
     public List<MovementStepSaveData> MovementPath { get; init; } = [];
     public bool? EnterOnArrival { get; init; }
@@ -166,25 +180,9 @@ public static class LocalMapSerializer
             Terrain = terrain,
             Flags = flags,
             Explored = map.Explored.ToArray(),
+            Scent = map.Scent.Intensity.ToArray(),
             Entities = map.Entities.All
-                .Select(entity => new EntitySaveData
-                {
-                    Id = entity.Id.Value,
-                    Kind = (int)entity.Kind,
-                    LocalX = entity.LocalPosition.X,
-                    LocalY = entity.LocalPosition.Y,
-                    BlocksMovement = entity.BlocksMovement,
-                    IsActive = entity.IsActive,
-                    Faction = (int)entity.Faction,
-                    Speed = entity.Actor?.Speed,
-                    Energy = entity.Actor?.Energy,
-                    EnergyRemainder = entity.Actor?.EnergyRemainder,
-                    MaxHealth = entity.MaxHealth,
-                    Health = entity.Health,
-                    RaptorPhase = entity.Raptor is null ? null : (int)entity.Raptor.Phase,
-                    RaptorAmbushCooldown = entity.Raptor?.AmbushCooldown,
-                    RaptorAnnouncedFenceProbe = entity.Raptor?.AnnouncedFenceProbe
-                })
+                .Select(ToEntitySaveData)
                 .ToList()
         };
     }
@@ -210,6 +208,11 @@ public static class LocalMapSerializer
             Array.Copy(data.Explored, map.Explored, map.Explored.Length);
         }
 
+        if (data.Scent is not null && data.Scent.Length == map.Scent.Intensity.Length)
+        {
+            Array.Copy(data.Scent, map.Scent.Intensity, data.Scent.Length);
+        }
+
         if (data.Entities is not null)
         {
             map.Entities.ReplaceAll(data.Entities.Select(entityData => ToEntity(entityData, map.WorldPosition)));
@@ -220,6 +223,37 @@ public static class LocalMapSerializer
         }
 
         return map;
+    }
+
+    private static EntitySaveData ToEntitySaveData(Entity entity)
+    {
+        return new EntitySaveData
+        {
+            Id = entity.Id.Value,
+            Kind = (int)entity.Kind,
+            LocalX = entity.LocalPosition.X,
+            LocalY = entity.LocalPosition.Y,
+            BlocksMovement = entity.BlocksMovement,
+            IsActive = entity.IsActive,
+            Faction = (int)entity.Faction,
+            Speed = entity.Actor?.Speed,
+            Energy = entity.Actor?.Energy,
+            EnergyRemainder = entity.Actor?.EnergyRemainder,
+            MaxHealth = entity.MaxHealth,
+            Health = entity.Health,
+            RaptorPhase = entity.Raptor is null ? null : (int)entity.Raptor.Phase,
+            RaptorAmbushCooldown = entity.Raptor?.AmbushCooldown,
+            RaptorAnnouncedFenceProbe = entity.Raptor?.AnnouncedFenceProbe,
+            PerceptionAwareness = entity.Perception is null ? null : (int)entity.Perception.Awareness,
+            LastKnownX = entity.Perception?.LastKnownPosition?.X,
+            LastKnownY = entity.Perception?.LastKnownPosition?.Y,
+            InvestigateTurnsRemaining = entity.Perception?.InvestigateTurnsRemaining,
+            TurnsWithoutSight = entity.Perception?.TurnsWithoutSight,
+            ImmobilizedTurns = entity.ImmobilizedTurns,
+            BleedingTurns = entity.StatusEffects?.Effects.FirstOrDefault(e => e.Kind == StatusEffectKind.Bleeding)?.RemainingTurns,
+            LimpingTurns = entity.StatusEffects?.Effects.FirstOrDefault(e => e.Kind == StatusEffectKind.Limping)?.RemainingTurns,
+            SpriteId = entity.SpriteId
+        };
     }
 
     private static void ValidateMapData(LocalMapSaveData data)
@@ -253,7 +287,9 @@ public static class LocalMapSerializer
                 ? (FactionId)factionValue
                 : ((EntityKind)data.Kind).DefaultFaction(),
             MaxHealth = data.MaxHealth ?? 0,
-            Health = data.Health ?? 0
+            Health = data.Health ?? 0,
+            SpriteId = data.SpriteId,
+            ImmobilizedTurns = data.ImmobilizedTurns ?? 0
         };
 
         if (data.Speed.HasValue || data.Energy.HasValue || data.EnergyRemainder.HasValue)
@@ -266,7 +302,7 @@ public static class LocalMapSerializer
             };
         }
 
-        if (entity.Kind == EntityKind.Raptor)
+        if (entity.Kind is EntityKind.Raptor or EntityKind.Dilophosaur)
         {
             entity.Raptor = new RaptorMemory
             {
@@ -276,6 +312,49 @@ public static class LocalMapSerializer
                 AmbushCooldown = data.RaptorAmbushCooldown ?? 0,
                 AnnouncedFenceProbe = data.RaptorAnnouncedFenceProbe ?? false
             };
+        }
+
+        if (data.PerceptionAwareness.HasValue)
+        {
+            entity.Perception = new PerceptionState
+            {
+                Awareness = Enum.IsDefined(typeof(AwarenessLevel), data.PerceptionAwareness.Value)
+                    ? (AwarenessLevel)data.PerceptionAwareness.Value
+                    : AwarenessLevel.Unaware,
+                LastKnownPosition = data.LastKnownX.HasValue && data.LastKnownY.HasValue
+                    ? new LocalCoord(data.LastKnownX.Value, data.LastKnownY.Value)
+                    : null,
+                InvestigateTurnsRemaining = data.InvestigateTurnsRemaining ?? 0,
+                TurnsWithoutSight = data.TurnsWithoutSight ?? 0
+            };
+        }
+
+        if (data.BleedingTurns.HasValue || data.LimpingTurns.HasValue)
+        {
+            entity.StatusEffects = new StatusEffectList();
+            if (data.BleedingTurns is > 0)
+            {
+                entity.StatusEffects.Add(new StatusEffect
+                {
+                    Kind = StatusEffectKind.Bleeding,
+                    RemainingTurns = data.BleedingTurns.Value
+                });
+            }
+
+            if (data.LimpingTurns is > 0)
+            {
+                entity.StatusEffects.Add(new StatusEffect
+                {
+                    Kind = StatusEffectKind.Limping,
+                    RemainingTurns = data.LimpingTurns.Value
+                });
+            }
+        }
+
+        if (entity.Kind == EntityKind.Herbivore)
+        {
+            entity.Drive ??= new CreatureDriveState();
+            entity.Perception ??= new PerceptionState();
         }
 
         return entity;

@@ -2,6 +2,7 @@ using Game.Simulation.AI;
 using Game.Simulation.Coordinates;
 using Game.Simulation.Factions;
 using Game.Simulation.LocalMaps;
+using Game.Simulation.Perception;
 using Game.Simulation.Seeds;
 using Game.Simulation.Session;
 using Game.Simulation.Time;
@@ -13,6 +14,8 @@ public static class EntityFactory
 {
     private const uint HarvestableTreeSalt = 0xE17A_0001;
     private const uint RaptorSalt = 0xE17A_0003;
+    private const uint HerbivoreSalt = 0xE17A_0004;
+    private const uint DilophosaurSalt = 0xE17A_0005;
 
     public static EntityId CreateDeterministicId(
         ulong worldSeed,
@@ -49,9 +52,12 @@ public static class EntityFactory
         if (biome is BiomeId.Forest or BiomeId.Jungle)
         {
             SpawnRaptor(world, map, ordinal: 0);
+            SpawnHerbivore(world, map, ordinal: 0);
             if (biome == BiomeId.Jungle)
             {
                 SpawnRaptor(world, map, ordinal: 1);
+                SpawnHerbivore(world, map, ordinal: 1);
+                SpawnDilophosaur(world, map, ordinal: 0);
             }
         }
     }
@@ -75,12 +81,14 @@ public static class EntityFactory
             return false;
         }
 
-        map.Entities.Add(CreateRaptor(
+        Entity raptor = CreateRaptor(
             session.Overworld.Seed,
             map.WorldPosition,
             position.Value,
             ordinal: 50,
-            ambush: true));
+            ambush: true);
+        map.Entities.Add(raptor);
+        PerceptionSystem.InitializeAtSpawn(raptor, session, map, session.WorldTime);
 
         session.MarkRenderDirty();
         return true;
@@ -105,12 +113,14 @@ public static class EntityFactory
             return false;
         }
 
-        map.Entities.Add(CreateRaptor(
+        Entity raptor = CreateRaptor(
             session.Overworld.Seed,
             map.WorldPosition,
             position.Value,
             ordinal: 900 + session.PressureClock.LastEventThreshold,
-            ambush: true));
+            ambush: true);
+        map.Entities.Add(raptor);
+        PerceptionSystem.InitializeAtSpawn(raptor, session, map, session.WorldTime);
 
         session.MarkRenderDirty();
         return true;
@@ -137,10 +147,63 @@ public static class EntityFactory
             Actor = new ActorTurnState { Speed = 130, Energy = ActionCostTable.ActionThreshold },
             MaxHealth = 24,
             Health = 24,
+            Perception = new PerceptionState(),
+            Drive = new Ecology.CreatureDriveState(),
             Raptor = new RaptorMemory
             {
                 Phase = ambush ? RaptorPhase.Ambush : RaptorPhase.Stalk
             }
+        };
+    }
+
+    private static Entity CreateHerbivore(
+        ulong worldSeed,
+        WorldCoord mapCoordinate,
+        LocalCoord localPosition,
+        int ordinal)
+    {
+        return new Entity
+        {
+            Id = CreateDeterministicId(worldSeed, mapCoordinate, EntityKind.Herbivore, ordinal),
+            Kind = EntityKind.Herbivore,
+            WorldPosition = mapCoordinate,
+            LocalPosition = localPosition,
+            Facing = Direction.East,
+            SpriteId = "parasaurolophus",
+            BlocksMovement = true,
+            IsActive = true,
+            Faction = FactionId.Wildlife,
+            Actor = new ActorTurnState { Speed = 90, Energy = ActionCostTable.ActionThreshold },
+            MaxHealth = 18,
+            Health = 18,
+            Perception = new PerceptionState(),
+            Drive = new Ecology.CreatureDriveState { HerdAnchorId = (ulong)ordinal }
+        };
+    }
+
+    private static Entity CreateDilophosaur(
+        ulong worldSeed,
+        WorldCoord mapCoordinate,
+        LocalCoord localPosition,
+        int ordinal)
+    {
+        return new Entity
+        {
+            Id = CreateDeterministicId(worldSeed, mapCoordinate, EntityKind.Dilophosaur, ordinal),
+            Kind = EntityKind.Dilophosaur,
+            WorldPosition = mapCoordinate,
+            LocalPosition = localPosition,
+            Facing = Direction.East,
+            SpriteId = "dilophosaurus",
+            BlocksMovement = true,
+            IsActive = true,
+            Faction = FactionId.Wildlife,
+            Actor = new ActorTurnState { Speed = 120, Energy = ActionCostTable.ActionThreshold },
+            MaxHealth = 20,
+            Health = 20,
+            Perception = new PerceptionState(),
+            Drive = new Ecology.CreatureDriveState(),
+            Raptor = new RaptorMemory { Phase = RaptorPhase.Stalk }
         };
     }
 
@@ -162,7 +225,8 @@ public static class EntityFactory
             Faction = FactionId.Player,
             Actor = actor,
             MaxHealth = maxHealth,
-            Health = health
+            Health = health,
+            StatusEffects = new Combat.StatusEffectList()
         };
     }
 
@@ -195,6 +259,28 @@ public static class EntityFactory
         }
 
         map.Entities.Add(CreateRaptor(world.Seed, map.WorldPosition, position.Value, ordinal));
+    }
+
+    private static void SpawnHerbivore(Overworld world, LocalMap map, int ordinal)
+    {
+        LocalCoord? position = PickWalkablePosition(world.Seed, map, HerbivoreSalt + (uint)ordinal);
+        if (position is null)
+        {
+            return;
+        }
+
+        map.Entities.Add(CreateHerbivore(world.Seed, map.WorldPosition, position.Value, ordinal));
+    }
+
+    private static void SpawnDilophosaur(Overworld world, LocalMap map, int ordinal)
+    {
+        LocalCoord? position = PickWalkablePosition(world.Seed, map, DilophosaurSalt + (uint)ordinal);
+        if (position is null)
+        {
+            return;
+        }
+
+        map.Entities.Add(CreateDilophosaur(world.Seed, map.WorldPosition, position.Value, ordinal));
     }
 
     private static LocalCoord? PickWalkablePosition(ulong worldSeed, LocalMap map, uint salt)

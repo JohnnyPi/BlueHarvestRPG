@@ -27,5 +27,6 @@ public enum TerrainId : ushort
     Machinery,
     StairsUp,
     StairsDown,
-    StructureExit
+    StructureExit,
+    ShallowFord
 }

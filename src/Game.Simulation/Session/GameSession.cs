@@ -6,6 +6,7 @@ using Game.Simulation.Entities;
 using Game.Simulation.Factions;
 using Game.Simulation.Items;
 using Game.Simulation.LocalMaps;
+using Game.Simulation.Perception;
 using Game.Simulation.Quests;
 using Game.Simulation.Scenarios;
 using Game.Simulation.Session.Services;
@@ -19,7 +20,6 @@ namespace Game.Simulation.Session;
 
 public sealed class GameSession
 {
-    private readonly EntityRegistry _entityRegistry;
     private readonly Queue<(int X, int Y)> _movementPath = new();
     private readonly MapTransitionService _transitions = new();
     private readonly MovementService _movement;
@@ -32,7 +32,6 @@ public sealed class GameSession
         Overworld = overworld;
         LocalMapRepository = localMapRepository;
         _movement = new MovementService(_transitions);
-        _entityRegistry = new EntityRegistry(overworld, localMapRepository);
         ViewMode = GameViewMode.Overworld;
         RunScenario = ScenarioGenerator.Generate(overworld.Seed, overworld.IslandPlan);
         PlayerWorldPosition = ResolveStartingWorldPosition(overworld, RunScenario);
@@ -41,6 +40,7 @@ public sealed class GameSession
         QuestLog = new QuestLog();
         CharacterProgress = characterProgress ?? new CharacterProgress();
         StartScenarioQuests();
+        ApplyAttributeBonuses();
         RevealOverworldAroundPlayer();
         UpdateVisibility();
     }
@@ -250,8 +250,6 @@ public sealed class GameSession
     public int MovementTransitionBorderX => TransitionBorderX;
     public int MovementTransitionBorderY => TransitionBorderY;
 
-    public EntityRegistry Entities => _entityRegistry;
-
     public Entity PlayerEntity
     {
         get
@@ -278,6 +276,91 @@ public sealed class GameSession
     public int PlayerHealth { get; set; } = 100;
     public int PlayerMaxHealth { get; set; } = 100;
     public long WorldTime { get; set; }
+    public MovementMode MovementMode { get; set; } = MovementMode.Walk;
+
+    public float NoiseMultiplier => MovementMode switch
+    {
+        MovementMode.Sneak => 0.25f,
+        MovementMode.Sprint => 4f,
+        _ => 1f
+    };
+
+    public int GetLocalMoveCost()
+    {
+        int baseCost = MovementMode switch
+        {
+            MovementMode.Sneak => 150,
+            MovementMode.Sprint => 80,
+            _ => Time.ActionCostTable.Walk
+        };
+
+        if (PlayerEntity.StatusEffects?.Has(Combat.StatusEffectKind.Limping) == true)
+        {
+            baseCost += 25;
+        }
+
+        return baseCost + PressureState.TravelStaminaPenalty;
+    }
+
+    public void ApplyAttributeBonuses()
+    {
+        int vitalityBonus = CharacterProgress.Attributes.TryGetValue("vitality", out int vitality)
+            ? Math.Max(0, vitality - 10)
+            : 0;
+
+        PlayerMaxHealth = 100 + vitalityBonus * 5;
+        Entity player = PlayerEntity;
+        player.MaxHealth = PlayerMaxHealth;
+        player.Health = Math.Min(player.Health, PlayerMaxHealth);
+        RefreshPlayerVitals();
+    }
+
+    public string GetStealthStatusLabel()
+    {
+        if (ActiveLocalMap is null)
+        {
+            return string.Empty;
+        }
+
+        AwarenessLevel highest = AwarenessLevel.Unaware;
+        foreach (Entity entity in ActiveLocalMap.Entities.All)
+        {
+            if (entity.Kind is not (EntityKind.Raptor or EntityKind.Dilophosaur) || !entity.IsActive)
+            {
+                continue;
+            }
+
+            if (entity.Perception?.Awareness > highest)
+            {
+                highest = entity.Perception.Awareness;
+            }
+        }
+
+        return highest switch
+        {
+            AwarenessLevel.Engaged => "Spotted!",
+            AwarenessLevel.Tracking => "Hunted",
+            AwarenessLevel.Suspicious => "Suspicious",
+            _ => "Hidden"
+        };
+    }
+
+    public void InitializeCreaturePerception()
+    {
+        if (ActiveLocalMap is null)
+        {
+            return;
+        }
+
+        foreach (Entity entity in ActiveLocalMap.Entities.All)
+        {
+            if (entity.Perception is null &&
+                entity.Kind is EntityKind.Raptor or EntityKind.Dilophosaur or EntityKind.Herbivore)
+            {
+                Perception.PerceptionSystem.InitializeAtSpawn(entity, this, ActiveLocalMap, WorldTime);
+            }
+        }
+    }
 
     public bool[] VisibleTiles => _visibleTiles;
 
@@ -298,12 +381,6 @@ public sealed class GameSession
         if (existing is null)
         {
             LocalCoord spawn = WalkabilityHelper.FindUnoccupiedWalkable(ActiveLocalMap, PlayerLocalPosition);
-            for (int attempt = 0; attempt < LocalMap.Width * LocalMap.Height && ActiveLocalMap.Entities.GetAt(spawn) is not null; attempt++)
-            {
-                spawn = new LocalCoord((spawn.X + 1) % LocalMap.Width, (spawn.Y + 1) % LocalMap.Height);
-                spawn = WalkabilityHelper.FindUnoccupiedWalkable(ActiveLocalMap, spawn);
-            }
-
             PlayerLocalPosition = spawn;
             Entity player = EntityFactory.CreatePlayer(
                 PlayerWorldPosition,
@@ -390,6 +467,7 @@ public sealed class GameSession
         EnsurePlayerEntity();
         TrySpawnPendingPressurePredator();
         ScenarioEncounterResolver.TryTriggerFirstEncounter(this);
+        InitializeCreaturePerception();
         UpdateVisibility();
         MarkRenderDirty();
         MessageLog.Add($"Entered local map at {coordinate.X}, {coordinate.Y}.");
@@ -982,16 +1060,6 @@ public sealed class GameSession
                 ? RaptorBehavior.Describe(entity)
                 : entity.Kind.ToString();
         return $"Local ({x}, {y}) terrain={ActiveLocalMap.Terrain[index]} entity={entityText}";
-    }
-
-    private string DescribeOverworldLandmark(int x, int y)
-    {
-        if (Overworld.IslandPlan is null || !Overworld.Explored[Overworld.GetIndex(new WorldCoord(x, y))])
-        {
-            return string.Empty;
-        }
-
-        return OverworldLandmarkCatalog.GetName(Overworld.IslandPlan, x, y);
     }
 
     private string DescribeOverworldGeology(int x, int y)

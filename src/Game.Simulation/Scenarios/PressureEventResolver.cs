@@ -1,3 +1,4 @@
+using Game.Simulation.Character;
 using Game.Simulation.Coordinates;
 using Game.Simulation.Entities;
 using Game.Simulation.LocalMaps;
@@ -17,6 +18,7 @@ public static class PressureEventResolver
             case 1:
                 session.FinaleThreats.Record(FinaleThreatId.RaptorPack);
                 ApplyPredatorStir(session);
+                ExperienceService.GrantExperience(session, 15, "survived pressure threshold");
                 break;
             case 2:
                 session.FinaleThreats.Record(FinaleThreatId.StormFront);

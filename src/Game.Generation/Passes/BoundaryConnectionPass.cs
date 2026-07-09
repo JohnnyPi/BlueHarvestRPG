@@ -99,6 +99,6 @@ public sealed class BoundaryConnectionPass : IGenerationPass
             return;
         }
 
-        map.SetTerrain(x, y, TerrainId.ShallowWater, TileFlags.ContainsWater);
+        map.SetTerrain(x, y, TerrainId.ShallowFord, TileFlags.ContainsWater);
     }
 }

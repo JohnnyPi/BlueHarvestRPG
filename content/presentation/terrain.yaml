@@ -5,6 +5,9 @@
   ShallowWater:
     name: Shallow Water
     color: "#4682B4"
+  ShallowFord:
+    name: Shallow Ford
+    color: "#4682B4"
   Sand:
     name: Sand
     color: "#F4A460"

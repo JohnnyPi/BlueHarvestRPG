@@ -12,7 +12,9 @@ public readonly record struct PlayerStatusView(
     int? LocalX,
     int? LocalY,
     string LocationLabel,
-    string TerrainOrBiome);
+    string TerrainOrBiome,
+    string StealthStatus = "",
+    string MovementModeLabel = "Walk");
 
 public readonly record struct InventoryItemView(int ItemId, string DisplayName, int Count);
 

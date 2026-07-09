@@ -10,6 +10,8 @@ namespace Game.Simulation.Session.Services;
 
 public sealed class StructureTransitionService
 {
+    private readonly ActiveMapSwitchService _mapSwitch = new();
+
     public bool CanUseTransition(
         GameSession session,
         int x,
@@ -56,19 +58,6 @@ public sealed class StructureTransitionService
             return false;
         }
 
-        if (session.ActiveLocalMap is not null)
-        {
-            session.RefreshPlayerVitals();
-            session.LocalMapRepository.Store(session.ActiveLocalMap);
-            session.ActiveLocalMap.Entities.Remove(EntityId.Player);
-
-            if (session.ActiveLocalMap.IsSurface)
-            {
-                ref WorldCell cell = ref session.Overworld.GetCell(session.ActiveLocalMap.WorldPosition);
-                cell.HasLocalChanges = true;
-            }
-        }
-
         LocalMap destination = session.LocalMapRepository.GetOrGenerate(transition.Destination);
         LocalCoord landing = WalkabilityHelper.FindNearestWalkable(destination, transition.DestinationLocal);
         if (destination.BlocksMovement(landing))
@@ -87,11 +76,7 @@ public sealed class StructureTransitionService
             session.SurfaceReturnPosition = null;
         }
 
-        session.ActiveLocalMap = destination;
-        session.PlayerLocalPosition = landing;
-        session.SyncPlayerEntityPosition();
-        session.EnsurePlayerEntity();
-        session.MarkVisibilityDirty();
+        _mapSwitch.SwitchTo(session, destination, landing, markSurfaceLocalChanges: true);
         session.MarkRenderDirty();
 
         session.MessageLog.Add(DescribeTransition(transition));

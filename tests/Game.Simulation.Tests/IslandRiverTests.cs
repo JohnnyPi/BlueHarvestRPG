@@ -94,8 +94,8 @@ public class IslandRiverTests
                         TerrainId westEdge = westMap.Terrain[westMap.GetIndex(LocalMap.Width - 1, offset)];
                         TerrainId eastEdge = eastMap.Terrain[eastMap.GetIndex(0, offset)];
 
-                        Assert.Equal(TerrainId.ShallowWater, westEdge);
-                        Assert.Equal(TerrainId.ShallowWater, eastEdge);
+                        Assert.Equal(TerrainId.ShallowFord, westEdge);
+                        Assert.Equal(TerrainId.ShallowFord, eastEdge);
                     }
 
                     return;

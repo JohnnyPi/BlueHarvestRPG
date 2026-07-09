@@ -51,3 +51,13 @@
     keyboard: [F3]
   RevealMap:
     keyboard: [F4]
+  ToggleSneak:
+    keyboard: [LeftShift]
+  ToggleSprint:
+    keyboard: [LeftControl]
+  UseItemBerry:
+    keyboard: [B]
+  CraftSnare:
+    keyboard: [N]
+  PlaceDistraction:
+    keyboard: [M]

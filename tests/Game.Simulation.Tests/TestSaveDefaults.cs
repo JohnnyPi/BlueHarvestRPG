@@ -1,13 +1,16 @@
 using Game.Content;
 using Game.Content.Definitions;
 using Game.Generation.Biomes;
+using Game.Simulation.World.Island;
 
 namespace Game.Simulation.Tests;
 
 internal static class TestSaveDefaults
 {
     public static readonly BiomeClassifier Classifier = BiomeClassifier.CreateDefault();
-    public static readonly uint RulesHash = BiomeRulesHash.Compute(new BiomeRulesDefinition());
+    public static readonly BiomeRulesDefinition BiomeRules = new();
+    public static readonly StructureBlueprintCatalog BlueprintCatalog = StructureBlueprintCatalogDefaults.Create();
+    public static readonly uint RulesHash = BiomeRulesHash.Compute(BiomeRules);
     public static readonly IslandDefinition Island = new()
     {
         OverworldSize = 64,

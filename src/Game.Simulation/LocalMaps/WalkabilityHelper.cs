@@ -163,9 +163,10 @@ public static class WalkabilityHelper
 
             if (connection.Edge is Direction.East or Direction.West)
             {
+                int edgeX = connection.Edge == Direction.West ? 0 : LocalMap.Width - 1;
                 for (int y = connection.LocalOffset; y < connection.LocalOffset + connection.Width; y++)
                 {
-                    var coord = new LocalCoord(0, y);
+                    var coord = new LocalCoord(edgeX, y);
                     if (map.Contains(coord) && !map.BlocksMovement(coord))
                     {
                         return coord;
@@ -174,9 +175,10 @@ public static class WalkabilityHelper
             }
             else
             {
+                int edgeY = connection.Edge == Direction.North ? 0 : LocalMap.Height - 1;
                 for (int x = connection.LocalOffset; x < connection.LocalOffset + connection.Width; x++)
                 {
-                    var coord = new LocalCoord(x, 0);
+                    var coord = new LocalCoord(x, edgeY);
                     if (map.Contains(coord) && !map.BlocksMovement(coord))
                     {
                         return coord;

@@ -37,10 +37,13 @@ public class EntityPersistenceTests
             "faction",
             localGenerator,
             TestSaveDefaults.Island,
+            TestSaveDefaults.BlueprintCatalog,
+            TestSaveDefaults.BiomeRules,
             TestSaveDefaults.RulesHash,
             out _,
             out GameSession loadedSession,
             out InMemoryLocalMapRepository loadedRepository,
+            out _,
             out _);
 
         Assert.True(loaded);
@@ -75,9 +78,12 @@ public class EntityPersistenceTests
             "health",
             localGenerator,
             TestSaveDefaults.Island,
+            TestSaveDefaults.BlueprintCatalog,
+            TestSaveDefaults.BiomeRules,
             TestSaveDefaults.RulesHash,
             out _,
             out GameSession loadedSession,
+            out _,
             out _,
             out _);
 
@@ -203,10 +209,13 @@ public class EntityPersistenceTests
             "entities",
             localGenerator,
             TestSaveDefaults.Island,
+            TestSaveDefaults.BlueprintCatalog,
+            TestSaveDefaults.BiomeRules,
             TestSaveDefaults.RulesHash,
             out Overworld loadedWorld,
             out GameSession loadedSession,
             out InMemoryLocalMapRepository loadedRepository,
+            out _,
             out _);
 
         Assert.True(loaded);

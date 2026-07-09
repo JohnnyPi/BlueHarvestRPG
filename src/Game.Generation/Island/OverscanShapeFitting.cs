@@ -60,7 +60,12 @@ public static class OverscanShapeFitting
     float safeHalf = MathF.Min(safeHalfX, safeHalfY);
 
     float authoringExtent = EstimateAuthoringExtent(config);
-    float warpPadding = config.IslandShape.DomainWarp.Amplitude * 2f;
+    float warpPadding = (
+        config.IslandShape.DomainWarp.LobingAmplitude
+        + config.IslandShape.DomainWarp.Amplitude
+        + config.IslandShape.DomainWarp.LargeStrength
+        + config.IslandShape.DomainWarp.MediumStrength
+        + config.IslandShape.DomainWarp.SmallStrength) * 1.5f;
     float requiredExtent = authoringExtent + warpPadding;
 
     return Math.Clamp(safeHalf / MathF.Max(0.5f, requiredExtent), 0.45f, 1f);

@@ -6,7 +6,6 @@ using Game.Persistence.Repositories;
 using Game.Persistence.Saves;
 using Game.Simulation;
 using Game.Simulation.Character;
-using Game.Simulation.LocalMaps;
 using Game.Simulation.Rendering;
 using Game.Simulation.Session;
 using Game.Simulation.Visibility;
@@ -33,92 +32,25 @@ public static class GameBootstrap
                 "autosave",
                 localMapGenerator,
                 bundle.Island,
+                blueprintCatalog,
+                bundle.BiomeRules,
                 biomeRulesHash,
                 out Overworld world,
                 out GameSession loadedSession,
                 out InMemoryLocalMapRepository loadedRepository,
+                out long restoredWorldTime,
                 out _))
         {
-            var repository = new PersistentLocalMapRepository(world, localMapGenerator);
-            foreach (LocalMap map in loadedRepository.Maps.Values)
-            {
-                repository.Store(map);
-            }
+            EnsureCharacterDefaults(loadedSession.CharacterProgress, bundle.CharacterDefaults);
+            loadedSession.UpdateVisibility();
 
-            var session = new GameSession(world, repository, loadedSession.CharacterProgress.Clone())
-            {
-                ViewMode = loadedSession.ViewMode,
-                PlayerWorldPosition = loadedSession.PlayerWorldPosition,
-                PlayerLocalPosition = loadedSession.PlayerLocalPosition,
-                RunScenario = loadedSession.RunScenario
-            };
-
-            foreach (var stack in loadedSession.Inventory.Stacks)
-            {
-                session.Inventory.Add(stack);
-            }
-
-            foreach (var entry in loadedSession.QuestLog.Progress)
-            {
-                session.QuestLog.Restore(entry.QuestId, entry.State, entry.Progress);
-            }
-
-            EnsureCharacterDefaults(session.CharacterProgress, bundle.CharacterDefaults);
-            session.PlayerTurnState.Speed = loadedSession.PlayerTurnState.Speed;
-            session.PlayerTurnState.Energy = loadedSession.PlayerTurnState.Energy;
-            session.PlayerTurnState.EnergyRemainder = loadedSession.PlayerTurnState.EnergyRemainder;
-            session.PressureClock.Restore(
-                loadedSession.PressureClock.Pressure,
-                loadedSession.PressureClock.LastEventThreshold);
-            session.PressureState.Restore(
-                loadedSession.PressureState.TravelStaminaPenalty,
-                loadedSession.PressureState.EvacHoursRemaining,
-                loadedSession.PressureState.PendingPredatorSpawn,
-                loadedSession.PressureState.MissedEvacuation,
-                loadedSession.PressureState.HazardousTravelCell);
-            session.RestoreRunState(
-                loadedSession.Outcome,
-                loadedSession.EscapeEnding,
-                loadedSession.RunEndTitle,
-                loadedSession.RunEndSummary);
-            session.FinaleThreats.Restore(loadedSession.FinaleThreats.Threats);
-            session.FirstEncounterTriggered = loadedSession.FirstEncounterTriggered;
-            session.PlayerHealth = loadedSession.PlayerHealth;
-            session.PlayerMaxHealth = loadedSession.PlayerMaxHealth;
-            session.WorldTime = loadedSession.WorldTime;
-            session.MessageLog.Restore(loadedSession.MessageLog.Recent(MessageLog.MaxPersistedMessages));
-            if (loadedSession.HasQueuedMovement)
-            {
-                session.RestoreMovementPath(
-                    loadedSession.SnapshotMovementPath(),
-                    loadedSession.MovementEnterOnArrival,
-                    loadedSession.MovementTransitionOnArrival,
-                    (Direction)loadedSession.MovementTransitionEdge,
-                    loadedSession.MovementTransitionBorderX,
-                    loadedSession.MovementTransitionBorderY);
-            }
-
-            Array.Copy(loadedSession.Overworld.Explored, world.Explored, world.Explored.Length);
-
-            if (session.ViewMode == GameViewMode.LocalMap)
-            {
-                var worldPosition = session.PlayerWorldPosition;
-                session.ActiveLocalMap = repository.GetOrGenerateSurface(worldPosition);
-                session.EnsurePlayerEntity();
-                session.UpdateVisibility();
-            }
-            else
-            {
-                session.UpdateVisibility();
-            }
-
-            var host = new SimulationHost(world, session, repository)
+            var host = new SimulationHost(world, loadedSession, loadedRepository)
             {
                 ViewContent = RenderViewContentFactory.Create(bundle),
                 BlueprintCatalog = blueprintCatalog,
-                IsNewGame = false
+                IsNewGame = false,
+                RestoredWorldTime = restoredWorldTime
             };
-            host.Initialize();
             return host;
         }
 
@@ -126,7 +58,7 @@ public static class GameBootstrap
         var islandGenerator = new IslandWorldGenerator(bundle.Island, blueprintCatalog, bundle.BiomeRules);
         world = islandGenerator.Generate(seed);
 
-        var newRepository = new PersistentLocalMapRepository(world, localMapGenerator);
+        var newRepository = new InMemoryLocalMapRepository(world, localMapGenerator);
         var characterProgress = CharacterProgress.CreateFromDefaults(
             bundle.CharacterDefaults.StartingLevel,
             bundle.CharacterDefaults.StartingExperience,
@@ -151,28 +83,18 @@ public static class GameBootstrap
 
     public static void SaveGame(SimulationHost host, SaveManager saveManager, GameContentBundle bundle)
     {
-        uint biomeRulesHash = BiomeRulesHash.Compute(bundle.BiomeRules);
-
-        if (host.LocalMapRepository is PersistentLocalMapRepository persistent)
+        if (host.LocalMapRepository is not InMemoryLocalMapRepository inMemory)
         {
-            saveManager.Save(
-                host.Overworld,
-                host.Session,
-                persistent.Inner,
-                biomeRulesHash,
-                worldTime: host.Clock.WorldTime);
             return;
         }
 
-        if (host.LocalMapRepository is InMemoryLocalMapRepository inMemory)
-        {
-            saveManager.Save(
-                host.Overworld,
-                host.Session,
-                inMemory,
-                biomeRulesHash,
-                worldTime: host.Clock.WorldTime);
-        }
+        uint biomeRulesHash = BiomeRulesHash.Compute(bundle.BiomeRules);
+        saveManager.Save(
+            host.Overworld,
+            host.Session,
+            inMemory,
+            biomeRulesHash,
+            worldTime: host.Clock.WorldTime);
     }
 
     private static void EnsureCharacterDefaults(CharacterProgress progress, CharacterDefaultsDefinition defaults)

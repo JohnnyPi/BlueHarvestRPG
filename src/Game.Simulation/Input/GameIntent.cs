@@ -29,5 +29,10 @@ public enum GameIntent
     UseStairsDown,
     UseRopeDescent,
     Wait,
+    ToggleSneak,
+    ToggleSprint,
+    UseItemBerry,
+    CraftSnare,
+    PlaceDistraction,
     None
 }

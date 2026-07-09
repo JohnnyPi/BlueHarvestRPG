@@ -1,5 +1,7 @@
 using Game.Simulation.Coordinates;
 using Game.Simulation.Entities;
+using Game.Simulation.Perception;
+using Game.Simulation.World;
 
 namespace Game.Simulation.LocalMaps;
 
@@ -23,6 +25,8 @@ public sealed class LocalMap
     public TerrainId[] Terrain { get; }
     public TileFlags[] Flags { get; }
     public bool[] Explored { get; }
+    public NoiseField Noise { get; } = new();
+    public ScentField Scent { get; } = new();
     public MapEntityStore Entities { get; } = new();
 
     public LocalMap(MapKey key)
@@ -76,6 +80,23 @@ public sealed class LocalMap
 
         int index = GetIndex(coord.X, coord.Y);
         return (Flags[index] & TileFlags.BlocksVision) != 0;
+    }
+
+    public bool ReducesVision(LocalCoord coord)
+    {
+        if (!Contains(coord))
+        {
+            return false;
+        }
+
+        int index = GetIndex(coord.X, coord.Y);
+        if ((Flags[index] & TileFlags.ReducesVision) != 0)
+        {
+            return true;
+        }
+
+        TerrainId terrain = Terrain[index];
+        return terrain == TerrainId.Grass;
     }
 
     public void SetTerrain(int x, int y, TerrainId terrain, TileFlags flags)

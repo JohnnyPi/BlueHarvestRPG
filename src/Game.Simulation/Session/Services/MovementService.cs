@@ -4,6 +4,7 @@ using Game.Simulation.Entities;
 using Game.Simulation.Factions;
 using Game.Simulation.LocalMaps;
 using Game.Simulation.Pathfinding;
+using Game.Simulation.Perception;
 using Game.Simulation.Session;
 using Game.Simulation.World;
 
@@ -109,7 +110,31 @@ public sealed class MovementService
         session.UpdateFacingFromDelta(deltaX, deltaY);
         session.SyncPlayerEntityPosition();
         session.MarkVisibilityDirty();
+        EmitPlayerMovementSignals(session, next);
         return true;
+    }
+
+    private static void EmitPlayerMovementSignals(GameSession session, LocalCoord position)
+    {
+        if (session.ActiveLocalMap is null)
+        {
+            return;
+        }
+
+        PerceptionSystem.DepositScent(session.ActiveLocalMap, position);
+
+        switch (session.MovementMode)
+        {
+            case MovementMode.Sneak:
+                NoiseEmitter.EmitWalk(session, position, session.NoiseMultiplier);
+                break;
+            case MovementMode.Sprint:
+                NoiseEmitter.EmitSprint(session, position, session.NoiseMultiplier);
+                break;
+            default:
+                NoiseEmitter.EmitWalk(session, position, session.NoiseMultiplier);
+                break;
+        }
     }
 
     public void AdvanceMovement(GameSession session)

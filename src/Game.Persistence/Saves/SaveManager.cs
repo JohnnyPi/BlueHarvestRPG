@@ -9,6 +9,7 @@ using Game.Simulation.Scenarios;
 using Game.Simulation.Session;
 using Game.Simulation.Visibility;
 using Game.Simulation.World;
+using Game.Simulation.World.Island;
 using Game.Simulation.UI;
 using System.Text.Json;
 
@@ -69,6 +70,7 @@ public sealed class SaveManager
             PlayerHealth = session.PlayerHealth,
             PlayerMaxHealth = session.PlayerMaxHealth,
             WorldTime = worldTime,
+            MovementMode = (int)session.MovementMode,
             MessageLog = session.MessageLog.Recent(MessageLog.MaxPersistedMessages).ToList(),
             MovementPath = session.SnapshotMovementPath()
                 .Select(step => new MovementStepSaveData { X = step.X, Y = step.Y })
@@ -162,15 +164,19 @@ public sealed class SaveManager
         string slotName,
         ILocalMapGenerator generator,
         IslandDefinition islandDefinition,
+        StructureBlueprintCatalog blueprintCatalog,
+        BiomeRulesDefinition biomeRules,
         uint currentBiomeRulesHash,
         out Overworld world,
         out GameSession session,
         out InMemoryLocalMapRepository repository,
+        out long restoredWorldTime,
         out string? failureReason)
     {
         world = null!;
         session = null!;
         repository = null!;
+        restoredWorldTime = 0;
         failureReason = null;
 
         string path = GetSaveFilePath(slotName);
@@ -210,7 +216,7 @@ public sealed class SaveManager
 
         try
         {
-            var islandGenerator = new IslandWorldGenerator(islandDefinition);
+            var islandGenerator = new IslandWorldGenerator(islandDefinition, blueprintCatalog, biomeRules);
             world = islandGenerator.Generate(data.Seed);
             repository = new InMemoryLocalMapRepository(world, generator);
 
@@ -242,7 +248,13 @@ public sealed class SaveManager
 
             if (data.WorldTime.HasValue)
             {
-                session.WorldTime = data.WorldTime.Value;
+                restoredWorldTime = data.WorldTime.Value;
+            }
+
+            if (data.MovementMode.HasValue &&
+                Enum.IsDefined(typeof(MovementMode), data.MovementMode.Value))
+            {
+                session.MovementMode = (MovementMode)data.MovementMode.Value;
             }
 
             if (data.MessageLog is { Count: > 0 })

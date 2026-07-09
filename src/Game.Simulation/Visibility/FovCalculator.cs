@@ -5,7 +5,28 @@ namespace Game.Simulation.Visibility;
 
 public static class FovCalculator
 {
+    public const int DefaultPlayerRadius = 12;
+    public const int DefaultCreatureRadius = 10;
+
     public static void Compute(LocalMap map, LocalCoord origin, bool[] visible)
+    {
+        ComputeVisible(map, origin, DefaultPlayerRadius, visible);
+
+        if (!map.Contains(origin))
+        {
+            return;
+        }
+
+        for (int i = 0; i < visible.Length; i++)
+        {
+            if (visible[i])
+            {
+                map.Explored[i] = true;
+            }
+        }
+    }
+
+    public static void ComputeVisible(LocalMap map, LocalCoord origin, int radius, bool[] visible)
     {
         Array.Clear(visible, 0, visible.Length);
 
@@ -14,7 +35,6 @@ public static class FovCalculator
             return;
         }
 
-        int radius = 12;
         for (int dy = -radius; dy <= radius; dy++)
         {
             for (int dx = -radius; dx <= radius; dx++)
@@ -33,17 +53,15 @@ public static class FovCalculator
                 if (HasLineOfSight(map, origin, target))
                 {
                     visible[map.GetIndex(target.X, target.Y)] = true;
-                    map.Explored[map.GetIndex(target.X, target.Y)] = true;
                 }
             }
         }
 
         int originIndex = map.GetIndex(origin.X, origin.Y);
         visible[originIndex] = true;
-        map.Explored[originIndex] = true;
     }
 
-    private static bool HasLineOfSight(LocalMap map, LocalCoord from, LocalCoord to)
+    public static bool HasLineOfSight(LocalMap map, LocalCoord from, LocalCoord to)
     {
         int x0 = from.X;
         int y0 = from.Y;
@@ -84,5 +102,22 @@ public static class FovCalculator
         }
 
         return true;
+    }
+
+    public static bool CanSee(LocalMap map, LocalCoord from, LocalCoord to, int radius)
+    {
+        if (!map.Contains(from) || !map.Contains(to))
+        {
+            return false;
+        }
+
+        int dx = to.X - from.X;
+        int dy = to.Y - from.Y;
+        if (dx * dx + dy * dy > radius * radius)
+        {
+            return false;
+        }
+
+        return HasLineOfSight(map, from, to);
     }
 }

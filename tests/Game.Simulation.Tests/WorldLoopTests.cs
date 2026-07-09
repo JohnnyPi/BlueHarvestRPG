@@ -86,7 +86,7 @@ public class GenerationDeterminismTests
     {
         var island = TestSaveDefaults.Island;
         uint hash = Game.Content.BiomeRulesHash.Compute(new Game.Content.Definitions.BiomeRulesDefinition());
-        var generator = new IslandWorldGenerator(island);
+        var generator = new IslandWorldGenerator(island, TestSaveDefaults.BlueprintCatalog, TestSaveDefaults.BiomeRules);
         const ulong seed = 424242UL;
 
         Overworld original = generator.Generate(seed);
@@ -103,8 +103,11 @@ public class GenerationDeterminismTests
             "determinism",
             localGenerator,
             island,
+            TestSaveDefaults.BlueprintCatalog,
+            TestSaveDefaults.BiomeRules,
             hash,
             out Overworld loadedWorld,
+            out _,
             out _,
             out _,
             out _);
@@ -294,10 +297,13 @@ public class PersistenceTests
             "test",
             localGenerator,
             TestSaveDefaults.Island,
+            TestSaveDefaults.BlueprintCatalog,
+            TestSaveDefaults.BiomeRules,
             TestSaveDefaults.RulesHash,
             out Overworld loadedWorld,
             out GameSession loadedSession,
             out InMemoryLocalMapRepository loadedRepository,
+            out _,
             out _);
 
         Assert.True(loaded);

@@ -31,9 +31,12 @@ public sealed class CharacterProgressSaveTests
             "autosave",
             new LocalMapGenerator(),
             TestSaveDefaults.Island,
+            TestSaveDefaults.BlueprintCatalog,
+            TestSaveDefaults.BiomeRules,
             currentBiomeRulesHash: 0,
             out _,
             out GameSession loadedSession,
+            out _,
             out _,
             out string? failureReason);
 
@@ -46,6 +49,6 @@ public sealed class CharacterProgressSaveTests
     [Fact]
     public void Format_version_is_eight()
     {
-        Assert.Equal(9, WorldSaveData.FormatVersion);
+        Assert.Equal(10, WorldSaveData.FormatVersion);
     }
 }

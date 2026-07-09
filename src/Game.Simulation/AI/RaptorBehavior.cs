@@ -1,8 +1,10 @@
 using Game.Simulation.Combat;
 using Game.Simulation.Coordinates;
+using Game.Simulation.Ecology;
 using Game.Simulation.Entities;
 using Game.Simulation.Factions;
 using Game.Simulation.LocalMaps;
+using Game.Simulation.Perception;
 using Game.Simulation.Scenarios;
 using Game.Simulation.Session;
 
@@ -28,28 +30,86 @@ public static class RaptorBehavior
 
     public static bool TryAct(Entity entity, GameSession session, LocalMap map, long worldTime)
     {
-        if (entity.Kind != EntityKind.Raptor || !entity.IsActive)
+        if (entity.Kind is not (EntityKind.Raptor or EntityKind.Dilophosaur) || !entity.IsActive)
         {
             return false;
         }
 
+        if (TryTriggerSnare(entity, session, map))
+        {
+            return true;
+        }
+
+        PerceptionSystem.Update(entity, session, map, worldTime);
+        entity.Perception ??= new PerceptionState();
+        PerceptionState perception = entity.Perception;
+        DriveResolver.Resolve(entity, session, map);
+
         entity.Raptor ??= new RaptorMemory();
         RaptorMemory memory = entity.Raptor;
-        LocalCoord player = session.PlayerLocalPosition;
-        int distance = Manhattan(entity.LocalPosition, player);
+
+        if (memory.Phase == RaptorPhase.ProbeFence)
+        {
+            return ActProbeFence(entity, session, map, memory);
+        }
+
+        if (perception.Awareness == AwarenessLevel.Unaware)
+        {
+            if (IsAdjacentToFence(map, entity.LocalPosition))
+            {
+                memory.Phase = RaptorPhase.ProbeFence;
+                return ActProbeFence(entity, session, map, memory);
+            }
+
+            return WanderGoal.TryWander(entity, map, worldTime);
+        }
+
+        if (perception.Awareness == AwarenessLevel.Suspicious)
+        {
+            return ActInvestigate(entity, map, perception);
+        }
+
+        if (memory.Phase == RaptorPhase.ProbeFence)
+        {
+            return ActProbeFence(entity, session, map, memory);
+        }
+
+        LocalCoord target = ResolveTarget(entity, session, map, perception);
+        int distance = Manhattan(entity.LocalPosition, target);
+
+        if (memory.Phase == RaptorPhase.Retreat &&
+            perception.Awareness >= AwarenessLevel.Suspicious)
+        {
+            return ActRetreat(entity, session, map, target, memory, distance);
+        }
+
+        if (memory.Phase == RaptorPhase.Ambush &&
+            perception.Awareness >= AwarenessLevel.Tracking)
+        {
+            return ActAmbush(entity, session, map, target, distance);
+        }
+
+        if (perception.Awareness == AwarenessLevel.Tracking)
+        {
+            return ActTracking(entity, session, map, memory, target, distance);
+        }
+
+        if (perception.Awareness != AwarenessLevel.Engaged)
+        {
+            return false;
+        }
 
         return memory.Phase switch
         {
-            RaptorPhase.Ambush => ActAmbush(entity, session, map, player, distance),
-            RaptorPhase.Retreat => ActRetreat(entity, session, map, player, memory, distance),
-            RaptorPhase.ProbeFence => ActProbeFence(entity, session, map, memory),
-            _ => ActStalk(entity, session, map, player, memory, distance)
+            RaptorPhase.Ambush => ActAmbush(entity, session, map, target, distance),
+            RaptorPhase.Retreat => ActRetreat(entity, session, map, target, memory, distance),
+            _ => ActStalk(entity, session, map, target, memory, distance)
         };
     }
 
     public static void OnDamaged(GameSession session, Entity raptor)
     {
-        if (raptor.Kind != EntityKind.Raptor)
+        if (raptor.Kind is not (EntityKind.Raptor or EntityKind.Dilophosaur))
         {
             return;
         }
@@ -64,26 +124,82 @@ public static class RaptorBehavior
 
     public static string Describe(Entity entity)
     {
-        if (entity.Kind != EntityKind.Raptor || entity.Raptor is null)
+        if (entity.Kind is not (EntityKind.Raptor or EntityKind.Dilophosaur) || entity.Raptor is null)
         {
-            return "Raptor";
+            return entity.Kind == EntityKind.Dilophosaur ? "Dilophosaur" : "Raptor";
         }
 
         return entity.Raptor.Phase switch
         {
-            RaptorPhase.Stalk => "Raptor (stalking)",
-            RaptorPhase.ProbeFence => "Raptor (testing fence)",
-            RaptorPhase.Retreat => "Raptor (retreating)",
-            RaptorPhase.Ambush => "Raptor (ambushing)",
-            _ => "Raptor"
+            RaptorPhase.Stalk => $"{entity.Kind} (stalking)",
+            RaptorPhase.ProbeFence => $"{entity.Kind} (testing fence)",
+            RaptorPhase.Retreat => $"{entity.Kind} (retreating)",
+            RaptorPhase.Ambush => $"{entity.Kind} (ambushing)",
+            _ => entity.Kind.ToString()
         };
+    }
+
+    private static LocalCoord ResolveTarget(Entity entity, GameSession session, LocalMap map, PerceptionState perception)
+    {
+        if (entity.Drive?.ActiveDrive == CreatureDrive.Hunger &&
+            entity.Drive.HuntTargetId is ulong preyId)
+        {
+            Entity? prey = map.Entities.GetById(new EntityId(preyId));
+            if (prey is not null && prey.IsActive)
+            {
+                return prey.LocalPosition;
+            }
+        }
+
+        if (perception.Awareness == AwarenessLevel.Engaged)
+        {
+            return session.PlayerLocalPosition;
+        }
+
+        return perception.LastKnownPosition ?? entity.LocalPosition;
+    }
+
+    private static bool ActInvestigate(Entity entity, LocalMap map, PerceptionState perception)
+    {
+        if (perception.LastKnownPosition is null)
+        {
+            return false;
+        }
+
+        return TryStep(entity, map, StepToward(entity.LocalPosition, perception.LastKnownPosition.Value, map, entity));
+    }
+
+    private static bool ActTracking(
+        Entity entity,
+        GameSession session,
+        LocalMap map,
+        RaptorMemory memory,
+        LocalCoord target,
+        int distance)
+    {
+        if (distance <= 1 && entity.Drive?.ActiveDrive == CreatureDrive.Hunger)
+        {
+            Entity? prey = map.Entities.GetAt(target);
+            if (prey is not null && prey.Kind == EntityKind.Herbivore)
+            {
+                var combat = new CombatResolver();
+                return combat.TryAttack(session, entity, prey);
+            }
+        }
+
+        if (distance > MaxStalkDistance)
+        {
+            return TryStep(entity, map, StepToward(entity.LocalPosition, target, map, entity));
+        }
+
+        return TryStep(entity, map, PickFlankMove(entity.LocalPosition, target, map, entity, preferCloser: true));
     }
 
     private static bool ActStalk(
         Entity entity,
         GameSession session,
         LocalMap map,
-        LocalCoord player,
+        LocalCoord target,
         RaptorMemory memory,
         int distance)
     {
@@ -95,15 +211,15 @@ public static class RaptorBehavior
 
         if (distance <= 3)
         {
-            return TryStep(entity, map, PickMoveAwayFrom(entity.LocalPosition, player, map, entity));
+            return TryStep(entity, map, PickMoveAwayFrom(entity.LocalPosition, target, map, entity));
         }
 
         if (distance > MaxStalkDistance)
         {
-            return TryStep(entity, map, PickFlankMove(entity.LocalPosition, player, map, entity, preferCloser: true));
+            return TryStep(entity, map, PickFlankMove(entity.LocalPosition, target, map, entity, preferCloser: true));
         }
 
-        return TryStep(entity, map, PickFlankMove(entity.LocalPosition, player, map, entity, preferCloser: false));
+        return TryStep(entity, map, PickFlankMove(entity.LocalPosition, target, map, entity, preferCloser: false));
     }
 
     private static bool ActProbeFence(Entity entity, GameSession session, LocalMap map, RaptorMemory memory)
@@ -138,7 +254,7 @@ public static class RaptorBehavior
         Entity entity,
         GameSession session,
         LocalMap map,
-        LocalCoord player,
+        LocalCoord target,
         RaptorMemory memory,
         int distance)
     {
@@ -149,42 +265,63 @@ public static class RaptorBehavior
             memory.Phase = RaptorPhase.Ambush;
             session.MessageLog.Add("The raptor circles back for another strike.");
             session.MarkRenderDirty();
-            return ActAmbush(entity, session, map, player, distance);
+            return ActAmbush(entity, session, map, target, distance);
         }
 
         if (distance <= 4)
         {
-            return TryStep(entity, map, PickMoveAwayFrom(entity.LocalPosition, player, map, entity));
+            return TryStep(entity, map, PickMoveAwayFrom(entity.LocalPosition, target, map, entity));
         }
 
-        return TryStep(entity, map, PickFlankMove(entity.LocalPosition, player, map, entity, preferCloser: false));
+        return TryStep(entity, map, PickFlankMove(entity.LocalPosition, target, map, entity, preferCloser: false));
     }
 
     private static bool ActAmbush(
         Entity entity,
         GameSession session,
         LocalMap map,
-        LocalCoord player,
+        LocalCoord target,
         int distance)
     {
         if (distance <= 1)
         {
-            Entity playerEntity = session.PlayerEntity;
-            var combat = new CombatResolver();
-            if (combat.TryAttack(session, entity, playerEntity))
+            Entity? defender = map.Entities.GetAt(target);
+            if (defender is not null && defender.IsActive && FactionRelations.IsHostile(entity.Faction, defender.Faction))
             {
-                memoryResetAfterStrike(entity);
-                return true;
+                var combat = new CombatResolver();
+                if (combat.TryAttack(session, entity, defender))
+                {
+                    memoryResetAfterStrike(entity);
+                    return true;
+                }
             }
         }
 
-        if (TryStep(entity, map, StepToward(entity.LocalPosition, player, map, entity)))
+        if (TryStep(entity, map, StepToward(entity.LocalPosition, target, map, entity)))
         {
             return true;
         }
 
         entity.Raptor!.Phase = RaptorPhase.Stalk;
         return false;
+    }
+
+    private static bool TryTriggerSnare(Entity entity, GameSession session, LocalMap map)
+    {
+        Entity? trap = map.Entities.GetAt(entity.LocalPosition);
+        if (trap is null || trap.Kind != EntityKind.SnareTrap || !trap.IsActive)
+        {
+            return false;
+        }
+
+        entity.Health = Math.Max(0, entity.Health - 6);
+        entity.ImmobilizedTurns = 2;
+        trap.IsActive = false;
+        map.Entities.Remove(trap.Id);
+        NoiseEmitter.EmitCombat(session, entity.LocalPosition);
+        session.MessageLog.Add("A snare snaps shut on the raptor!");
+        session.MarkRenderDirty();
+        return true;
     }
 
     private static void memoryResetAfterStrike(Entity entity)

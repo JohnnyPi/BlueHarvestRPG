@@ -28,13 +28,14 @@ public static class ShapeFieldComposer
         IReadOnlyList<Game.Content.Definitions.IslandBlobDefinition> additiveBlobs,
         IReadOnlyList<Game.Content.Definitions.IslandBlobDefinition> subtractiveBays,
         float unionSmoothness,
-        float subtractSmoothness)
+        float subtractSmoothness,
+        ulong shapeSeed = 0)
     {
         float island = float.NegativeInfinity;
 
         foreach (Game.Content.Definitions.IslandBlobDefinition blob in additiveBlobs)
         {
-            float blobSdf = EllipseSdf.Evaluate(px, py, blob);
+            float blobSdf = EllipseSdf.Evaluate(px, py, blob, shapeSeed);
             float smoothness = blob.Smoothness > 0f ? blob.Smoothness : unionSmoothness;
             island = island == float.NegativeInfinity
                 ? blobSdf
@@ -48,7 +49,7 @@ public static class ShapeFieldComposer
 
         foreach (Game.Content.Definitions.IslandBlobDefinition bay in subtractiveBays)
         {
-            float baySdf = EllipseSdf.Evaluate(px, py, bay);
+            float baySdf = EllipseSdf.Evaluate(px, py, bay, shapeSeed);
             float smoothness = bay.Smoothness > 0f ? bay.Smoothness : subtractSmoothness;
             island = SmoothSubtract(island, baySdf, smoothness);
         }

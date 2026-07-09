@@ -2,6 +2,10 @@ namespace Game.Content.Definitions;
 
 public sealed class IslandDefinition
 {
+    /// <summary>
+    /// Legacy elliptical mask generation used by fast unit tests and IslandPreview tooling.
+    /// Production content leaves this false; do not enable in shipped saves.
+    /// </summary>
     public bool UseLegacyIslandMask { get; set; }
     public IslandShapeDefinition IslandShape { get; set; } = IslandShapeDefaults.CreateNublar();
     public List<IslandRidgeDefinition> Ridges { get; set; } = [.. IslandShapeDefaults.CreateNublarRidges()];
@@ -68,6 +72,9 @@ public sealed class IslandDefinition
     public BiomeNoiseDefinition BiomeNoise { get; set; } = new();
     public int RoadNetworkJunctionCount { get; set; } = 5;
     public int RoadWidth { get; set; } = 2;
+    /// <summary>
+    /// Legacy random road pass retained for IslandPreview comparisons. Off in production content.
+    /// </summary>
     public bool UseLegacyRandomRoads { get; set; }
 
     public float MaskInnerRadius { get; set; } = 0.25f;

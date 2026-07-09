@@ -1,6 +1,7 @@
-terrain:
+﻿terrain:
   DeepWater: deepocean.png
   ShallowWater: shallowwater.png
+  ShallowFord: shallowwater.png
   Sand: sand.png
   Dirt: dryland.png
   Grass: grass.png

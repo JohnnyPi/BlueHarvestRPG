@@ -31,9 +31,99 @@ public static class CoastlineVariationStage
         ulong stageSeed = SeedUtility.DeriveStage(seed, StageSalt);
 
         ApplyCoastalCellularAutomata(plan, landThreshold, detail, stageSeed);
-        CarveCoastalInlets(plan, landThreshold, detail, stageSeed + 50);
+        if (detail.ProceduralInletCount > 0)
+        {
+            CarveCoastalInlets(plan, landThreshold, detail, stageSeed + 50);
+        }
+
         PerturbMapEdgeCoastline(plan, landThreshold, config.MinOceanBorderCells, stageSeed + 180);
         CoastlineCleanupStage.Execute(plan, config);
+    }
+
+    /// <summary>
+    /// Carves tapered coastal inlets at river mouths after river paths are traced.
+    /// Recomputes coast distance so downstream land/coast classification stays consistent.
+    /// </summary>
+    public static void CarveRiverMouthInlets(
+        IslandPlan plan,
+        IslandDefinition config,
+        ulong stageSeed)
+    {
+        if (config.UseLegacyIslandMask || !config.IslandShape.CoastlineDetail.PreferRiverMouthInlets)
+        {
+            return;
+        }
+
+        if (plan.IsRiverCell.Length != plan.Width * plan.Height)
+        {
+            return;
+        }
+
+        float landThreshold = config.IslandShape.LandThreshold;
+        var random = new DeterministicRandom(stageSeed);
+        var mouths = new List<(int X, int Y, float NormalX, float NormalY)>();
+
+        for (int y = 0; y < plan.Height; y++)
+        {
+            for (int x = 0; x < plan.Width; x++)
+            {
+                int index = y * plan.Width + x;
+                if (!plan.IsRiverCell[index] || plan.IslandMask[index] <= landThreshold)
+                {
+                    continue;
+                }
+
+                if (!IsCoastLandCell(plan, x, y, landThreshold))
+                {
+                    continue;
+                }
+
+                if (!TryComputeInwardNormal(plan, x, y, landThreshold, out float normalX, out float normalY))
+                {
+                    continue;
+                }
+
+                mouths.Add((x, y, normalX, normalY));
+            }
+        }
+
+        if (mouths.Count == 0)
+        {
+            return;
+        }
+
+        int minSpacing = Math.Max(10, Math.Min(plan.Width, plan.Height) / 20);
+        var placed = new List<(int X, int Y)>();
+
+        foreach ((int x, int y, float normalX, float normalY) in mouths)
+        {
+            bool tooClose = placed.Any(site =>
+                Math.Abs(site.X - x) + Math.Abs(site.Y - y) < minSpacing);
+            if (tooClose)
+            {
+                continue;
+            }
+
+            placed.Add((x, y));
+            float inletDepth = 5f + random.NextFloat() * 8f;
+            float inletWidth = 3f + random.NextFloat() * 5f;
+            float centerX = x + normalX * inletDepth * 0.55f;
+            float centerY = y + normalY * inletDepth * 0.55f;
+            float tangentX = -normalY;
+            float tangentY = normalX;
+            float rotation = MathF.Atan2(tangentY, tangentX);
+
+            CarveTaperedInlet(
+                plan,
+                landThreshold,
+                centerX,
+                centerY,
+                radiusAlongShore: inletWidth,
+                radiusIntoLand: inletDepth,
+                rotationRadians: rotation);
+        }
+
+        CoastDistanceStage.Execute(plan, config);
     }
 
     private static void PerturbMapEdgeCoastline(
@@ -199,7 +289,7 @@ public static class CoastlineVariationStage
             float tangentY = normalX;
             float rotation = MathF.Atan2(tangentY, tangentX);
 
-            CarveEllipse(
+            CarveTaperedInlet(
                 plan,
                 landThreshold,
                 centerX,
@@ -210,7 +300,7 @@ public static class CoastlineVariationStage
         }
     }
 
-    private static void CarveEllipse(
+    private static void CarveTaperedInlet(
         IslandPlan plan,
         float landThreshold,
         float centerX,
@@ -237,7 +327,12 @@ public static class CoastlineVariationStage
                 float dy = y - centerY;
                 float localX = dx * cos + dy * sin;
                 float localY = -dx * sin + dy * cos;
-                float norm = (localX * localX) / (radiusAlongShore * radiusAlongShore)
+
+                // Wide at the mouth (ocean side), narrowing inland.
+                float inwardFraction = Math.Clamp((localY + radiusIntoLand) / (2f * radiusIntoLand), 0f, 1f);
+                float taperedRadiusAlongShore = radiusAlongShore * (1f - inwardFraction * 0.75f);
+
+                float norm = (localX * localX) / (taperedRadiusAlongShore * taperedRadiusAlongShore)
                     + (localY * localY) / (radiusIntoLand * radiusIntoLand);
                 if (norm > 1f)
                 {

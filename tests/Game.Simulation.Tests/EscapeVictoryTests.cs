@@ -126,9 +126,12 @@ public class EscapeVictoryTests
             "victory",
             localGenerator,
             TestSaveDefaults.Island,
+            TestSaveDefaults.BlueprintCatalog,
+            TestSaveDefaults.BiomeRules,
             TestSaveDefaults.RulesHash,
             out _,
             out GameSession loadedSession,
+            out _,
             out _,
             out _);
 
@@ -202,9 +205,12 @@ public class EscapeVictoryTests
             "threats",
             localGenerator,
             TestSaveDefaults.Island,
+            TestSaveDefaults.BlueprintCatalog,
+            TestSaveDefaults.BiomeRules,
             TestSaveDefaults.RulesHash,
             out _,
             out GameSession loadedSession,
+            out _,
             out _,
             out _);
 

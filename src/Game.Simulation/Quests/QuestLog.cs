@@ -1,3 +1,6 @@
+using Game.Simulation.Character;
+using Game.Simulation.Session;
+
 namespace Game.Simulation.Quests;
 
 public enum QuestState
@@ -43,7 +46,7 @@ public sealed class QuestLog
         }
     }
 
-    public void Advance(string questId, int amount, int target)
+    public void Advance(string questId, int amount, int target, GameSession? session = null)
     {
         if (!_entries.TryGetValue(questId, out QuestProgressEntry? entry))
         {
@@ -51,14 +54,29 @@ public sealed class QuestLog
             entry = _entries[questId];
         }
 
+        bool wasCompleted = entry.State == QuestState.Completed;
         entry.Progress = Math.Min(target, entry.Progress + amount);
         if (entry.Progress >= target)
         {
             entry.State = QuestState.Completed;
         }
+
+        if (session is not null && !wasCompleted && entry.State == QuestState.Completed)
+        {
+            int xp = questId switch
+            {
+                Scenarios.ScenarioQuestIds.Escape => 100,
+                Scenarios.ScenarioQuestIds.Mystery => 75,
+                Scenarios.ScenarioQuestIds.Endure => 50,
+                "first_kill" => 25,
+                "gather_wood" => 15,
+                _ => 20
+            };
+            ExperienceService.GrantExperience(session, xp, $"quest: {questId}");
+        }
     }
 
-    public void SetProgress(string questId, int progress, int target)
+    public void SetProgress(string questId, int progress, int target, GameSession? session = null)
     {
         if (!_entries.TryGetValue(questId, out QuestProgressEntry? entry))
         {
@@ -66,10 +84,16 @@ public sealed class QuestLog
             entry = _entries[questId];
         }
 
+        bool wasCompleted = entry.State == QuestState.Completed;
         entry.Progress = Math.Min(target, Math.Max(0, progress));
         if (entry.Progress >= target)
         {
             entry.State = QuestState.Completed;
+        }
+
+        if (session is not null && !wasCompleted && entry.State == QuestState.Completed)
+        {
+            ExperienceService.GrantExperience(session, 50, $"quest: {questId}");
         }
     }
 

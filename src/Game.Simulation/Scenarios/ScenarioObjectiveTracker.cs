@@ -38,7 +38,7 @@ public static class ScenarioObjectiveTracker
             return;
         }
 
-        session.QuestLog.Advance(ScenarioQuestIds.Escape, 1, 1);
+        session.QuestLog.Advance(ScenarioQuestIds.Escape, 1, 1, session);
         session.MessageLog.Add($"Reached escape route: {scenario.EscapeRoute} ({scenario.EscapeLandmark}).");
         session.MarkRenderDirty();
         EscapeVictoryResolver.TryCompleteEscape(session);
@@ -62,7 +62,7 @@ public static class ScenarioObjectiveTracker
             return;
         }
 
-        session.QuestLog.Advance(ScenarioQuestIds.Mystery, 1, 1);
+        session.QuestLog.Advance(ScenarioQuestIds.Mystery, 1, 1, session);
         session.MessageLog.Add($"Investigated mystery site: {scenario.MysteryLandmark}.");
         session.MarkRenderDirty();
     }
@@ -78,7 +78,8 @@ public static class ScenarioObjectiveTracker
         session.QuestLog.SetProgress(
             ScenarioQuestIds.Endure,
             pressure,
-            ScenarioQuestIds.EndurePressureTarget);
+            ScenarioQuestIds.EndurePressureTarget,
+            session);
 
         if (session.QuestLog.IsCompleted(ScenarioQuestIds.Endure))
         {

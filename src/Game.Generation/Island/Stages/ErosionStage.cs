@@ -94,6 +94,11 @@ public static class ErosionStage
         CarveRiverPaths(plan, config, stageSeed);
         AccumulateDrainage(plan);
         DerivedFieldsStage.ComputeRiverInfluence(plan);
+
+        if (!config.UseLegacyIslandMask)
+        {
+            CoastlineVariationStage.CarveRiverMouthInlets(plan, config, stageSeed + 200);
+        }
     }
 
     private static void AccumulateDrainage(IslandPlan plan)

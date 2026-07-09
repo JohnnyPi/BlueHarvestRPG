@@ -7,6 +7,8 @@ namespace Game.Simulation.Session.Services;
 
 public sealed class MapTransitionService
 {
+    private readonly ActiveMapSwitchService _mapSwitch = new();
+
     public bool WouldTransitionAcrossEdge(
         GameSession session,
         Direction edge,
@@ -107,15 +109,8 @@ public sealed class MapTransitionService
             return false;
         }
 
-        session.LocalMapRepository.Store(session.ActiveLocalMap);
-        ref WorldCell currentCell = ref session.Overworld.GetCell(session.ActiveLocalMap.WorldPosition);
-        currentCell.HasLocalChanges = true;
-
         session.PlayerWorldPosition = transition.DestinationWorld;
-        session.PlayerLocalPosition = landing;
-        session.ActiveLocalMap = destination;
-        session.SyncPlayerEntityPosition();
-        session.MarkVisibilityDirty();
+        _mapSwitch.SwitchTo(session, destination, landing, markSurfaceLocalChanges: true);
 
         return true;
     }

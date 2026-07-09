@@ -21,6 +21,7 @@ public static class GridPathfinder
             TerrainId.Dirt => 3,
             TerrainId.Mud => 5,
             TerrainId.ShallowWater => 8,
+            TerrainId.ShallowFord => 8,
             TerrainId.DeepWater => 10,
             TerrainId.Sand => 3,
             TerrainId.Rock => 6,

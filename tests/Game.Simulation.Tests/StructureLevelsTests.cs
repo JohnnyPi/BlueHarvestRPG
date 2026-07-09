@@ -165,10 +165,13 @@ public class StructureLevelsTests
                 "autosave",
                 generator,
                 bundle.Island,
+                bundle.CreateBlueprintCatalog(),
+                bundle.BiomeRules,
                 rulesHash,
                 out Overworld loadedWorld,
                 out GameSession loadedSession,
                 out var loadedRepository,
+                out _,
                 out string? failure),
                 failure);
 

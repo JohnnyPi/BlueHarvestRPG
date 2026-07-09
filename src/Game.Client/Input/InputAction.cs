@@ -29,4 +29,9 @@ public enum InputAction
     OpenCharacterSheet,
     ToggleDebug,
     RevealMap,
+    ToggleSneak,
+    ToggleSprint,
+    UseItemBerry,
+    CraftSnare,
+    PlaceDistraction,
 }

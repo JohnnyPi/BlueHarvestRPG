@@ -2,9 +2,15 @@ using Game.Generation.LocalMaps;
 using Game.Generation.WorldGen;
 using Game.Persistence.Saves;
 using Game.Persistence.Repositories;
+using Game.Simulation;
+using Game.Simulation.AI;
+using Game.Simulation.Combat;
 using Game.Simulation.Coordinates;
+using Game.Simulation.Entities;
+using Game.Simulation.Factions;
 using Game.Simulation.LocalMaps;
 using Game.Simulation.Session;
+using Game.Simulation.Time;
 using Game.Simulation.World;
 
 namespace Game.Simulation.Tests;
@@ -192,6 +198,39 @@ public class MapTransitionTests
     }
 
     [Fact]
+    public void BorderTransition_PlayerEntitySurvivesCombat()
+    {
+        SimulationHost host = CreateHost(42UL);
+        host.Session.PlayerWorldPosition = new WorldCoord(10, 8);
+        host.Session.EnterWorldCell();
+
+        const int edgeY = 24;
+        var edgePosition = new LocalCoord(LocalMap.Width - 1, edgeY);
+        host.Session.PlayerLocalPosition = edgePosition;
+        PrepareWalkableTransition(
+            host.Overworld,
+            host.LocalMapRepository,
+            host.Session.PlayerWorldPosition,
+            edgePosition,
+            1,
+            0);
+
+        int healthBefore = host.Session.PlayerHealth;
+        Assert.True(host.Session.TryMoveLocal(1, 0));
+
+        LocalMap destination = host.Session.ActiveLocalMap!;
+        Entity? storedPlayer = destination.Entities.GetById(EntityId.Player);
+        Assert.NotNull(storedPlayer);
+
+        Entity raptor = CreateRaptor(host.Session, new LocalCoord(host.Session.PlayerLocalPosition.X + 1, edgeY));
+        var combat = new CombatResolver();
+        Assert.True(combat.TryAttack(host.Session, raptor, storedPlayer));
+
+        Assert.True(host.Session.PlayerHealth < healthBefore);
+        Assert.Equal(storedPlayer.Health, host.Session.PlayerHealth);
+    }
+
+    [Fact]
     public void EnterWorldCell_AcceptsExplicitEntryPoint()
     {
         SimulationHost host = CreateHost(42UL);
@@ -233,10 +272,13 @@ public class MapTransitionTests
             "transition",
             localGenerator,
             TestSaveDefaults.Island,
+            TestSaveDefaults.BlueprintCatalog,
+            TestSaveDefaults.BiomeRules,
             TestSaveDefaults.RulesHash,
             out Overworld loadedWorld,
             out GameSession loadedSession,
             out InMemoryLocalMapRepository loadedRepository,
+            out _,
             out _);
 
         Assert.True(loaded);
@@ -278,6 +320,27 @@ public class MapTransitionTests
             transition.DestinationLocal.Y,
             TerrainId.Grass,
             TileFlags.None);
+    }
+
+    private static Entity CreateRaptor(GameSession session, LocalCoord position)
+    {
+        LocalMap map = session.ActiveLocalMap!;
+        var raptor = new Entity
+        {
+            Id = new EntityId(9001),
+            Kind = EntityKind.Raptor,
+            WorldPosition = map.WorldPosition,
+            LocalPosition = position,
+            BlocksMovement = true,
+            IsActive = true,
+            Faction = FactionId.Wildlife,
+            Actor = new ActorTurnState { Speed = 130, Energy = 100 },
+            MaxHealth = 24,
+            Health = 24,
+            Raptor = new RaptorMemory { Phase = RaptorPhase.Stalk }
+        };
+        map.Entities.Add(raptor);
+        return raptor;
     }
 
     private static SimulationHost CreateHost(ulong seed)

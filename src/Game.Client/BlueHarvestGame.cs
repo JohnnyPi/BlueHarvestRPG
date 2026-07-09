@@ -59,6 +59,12 @@ public sealed class BlueHarvestGame : Microsoft.Xna.Framework.Game
         _camera = new CameraController(_content.Camera);
         _menu = new ContextMenuController();
         _uiManager = new UiManager(_content, _saveManager, _simulation, Exit);
+        Exiting += OnGameExiting;
+    }
+
+    private void OnGameExiting(object? sender, EventArgs args)
+    {
+        GameBootstrap.SaveGame(_simulation, _saveManager, _content);
     }
 
     protected override void Initialize()
@@ -325,6 +331,31 @@ public sealed class BlueHarvestGame : Microsoft.Xna.Framework.Game
         if (frame.Pressed.Contains(InputAction.Wait))
         {
             _simulation.QueueIntent(GameIntent.Wait);
+        }
+
+        if (frame.Pressed.Contains(InputAction.ToggleSneak))
+        {
+            _simulation.QueueIntent(GameIntent.ToggleSneak);
+        }
+
+        if (frame.Pressed.Contains(InputAction.ToggleSprint))
+        {
+            _simulation.QueueIntent(GameIntent.ToggleSprint);
+        }
+
+        if (frame.Pressed.Contains(InputAction.UseItemBerry))
+        {
+            _simulation.QueueIntent(GameIntent.UseItemBerry);
+        }
+
+        if (frame.Pressed.Contains(InputAction.CraftSnare))
+        {
+            _simulation.QueueIntent(GameIntent.CraftSnare);
+        }
+
+        if (frame.Pressed.Contains(InputAction.PlaceDistraction))
+        {
+            _simulation.QueueIntent(GameIntent.PlaceDistraction);
         }
 
         if (frame.Pressed.Contains(InputAction.SaveGame))

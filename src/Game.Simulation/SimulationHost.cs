@@ -29,6 +29,7 @@ public sealed class SimulationHost
     private EntityRenderData[]? _entityBuffer;
     private bool[]? _visibleBuffer;
     private bool[]? _exploredBuffer;
+    private bool _overworldStaticMasksInitialized;
 
     private readonly record struct QueuedIntent(GameIntent Intent, int TargetX, int TargetY, bool HasTarget);
 
@@ -58,6 +59,8 @@ public sealed class SimulationHost
 
     public bool IsNewGame { get; set; }
 
+    public long RestoredWorldTime { get; init; }
+
     public SimulationHost(
         Overworld overworld,
         GameSession session,
@@ -81,7 +84,7 @@ public sealed class SimulationHost
         }
         else
         {
-            Clock.Restore(Session.WorldTime);
+            Clock.Restore(RestoredWorldTime);
         }
 
         Session.MarkRenderDirty();
@@ -304,6 +307,45 @@ public sealed class SimulationHost
                 }
 
                 break;
+            case GameIntent.ToggleSneak:
+                Session.MovementMode = Session.MovementMode == MovementMode.Sneak
+                    ? MovementMode.Walk
+                    : MovementMode.Sneak;
+                Session.MessageLog.Add(Session.MovementMode == MovementMode.Sneak
+                    ? "Moving quietly."
+                    : "Returning to normal pace.");
+                Session.MarkRenderDirty();
+                break;
+            case GameIntent.ToggleSprint:
+                Session.MovementMode = Session.MovementMode == MovementMode.Sprint
+                    ? MovementMode.Walk
+                    : MovementMode.Sprint;
+                Session.MessageLog.Add(Session.MovementMode == MovementMode.Sprint
+                    ? "Sprinting — you'll be heard!"
+                    : "Returning to normal pace.");
+                Session.MarkRenderDirty();
+                break;
+            case GameIntent.UseItemBerry:
+                if (new Items.ItemUseResolver().TryUseItem(Session, Items.ItemId.Berry, Session.PlayerLocalPosition.X, Session.PlayerLocalPosition.Y))
+                {
+                    RunScheduler();
+                }
+                break;
+            case GameIntent.CraftSnare:
+                if (new Items.ItemUseResolver().TryUseItem(Session, Items.ItemId.Wood, Session.PlayerLocalPosition.X, Session.PlayerLocalPosition.Y))
+                {
+                    RunScheduler();
+                }
+                break;
+            case GameIntent.PlaceDistraction:
+                if (new Items.ItemUseResolver().TryPlaceDistraction(
+                        Session,
+                        Session.PlayerLocalPosition.X,
+                        Session.PlayerLocalPosition.Y))
+                {
+                    RunScheduler();
+                }
+                break;
         }
     }
 
@@ -417,12 +459,19 @@ public sealed class SimulationHost
 
         _turnScheduler.Clock.Advance();
         Session.NotifyWorldHourElapsed();
+        Session.PlayerEntity.StatusEffects?.Tick(Session, Session.PlayerEntity);
         RunScheduler();
         Session.AdvancePressureClock(ActionCostTable.Wait);
     }
 
     private void RunScheduler()
     {
+        if (Session.ActiveLocalMap is not null)
+        {
+            Session.WorldTime = Clock.WorldTime;
+            Perception.PerceptionSystem.DecayFields(Session.ActiveLocalMap, Clock.WorldTime);
+        }
+
         _turnScheduler.RunUntilPlayerReady(
             Session,
             (entity, map) => CreatureAi.TryAct(entity, Session, map, _turnScheduler.Clock.WorldTime));
@@ -472,20 +521,13 @@ public sealed class SimulationHost
 
     private RenderSnapshot BuildOverworldSnapshot()
     {
-        int size = Overworld.Width * Overworld.Height;
-        _cellBuffer ??= new ushort[size];
-        if (_cellBuffer.Length != size)
-        {
-            _cellBuffer = new ushort[size];
-        }
+        EnsureOverworldStaticMasks();
 
-        int index = 0;
-        for (int y = 0; y < Overworld.Height; y++)
+        int size = Overworld.Width * Overworld.Height;
+        _visibleBuffer ??= new bool[size];
+        if (_visibleBuffer.Length != size)
         {
-            for (int x = 0; x < Overworld.Width; x++)
-            {
-                _cellBuffer[index++] = (ushort)Overworld.GetCellValue(new WorldCoord(x, y)).Biome;
-            }
+            _visibleBuffer = new bool[size];
         }
 
         WorldCoord player = Session.PlayerWorldPosition;
@@ -496,12 +538,6 @@ public sealed class SimulationHost
             $"Biome: {cell.Biome}",
             $"Elev {cell.Elevation:F2}  Moist {cell.Moisture:F2}  Temp {cell.Temperature:F2}",
             creatureEnergy: null);
-
-        _visibleBuffer ??= new bool[size];
-        if (_visibleBuffer.Length != size)
-        {
-            _visibleBuffer = new bool[size];
-        }
 
         bool debugFullBrightness = Session.DebugRevealAll;
         for (int i = 0; i < size; i++)
@@ -514,7 +550,7 @@ public sealed class SimulationHost
             ViewMode: Session.ViewMode,
             GridWidth: Overworld.Width,
             GridHeight: Overworld.Height,
-            CellData: _cellBuffer,
+            CellData: _cellBuffer!,
             PlayerX: player.X,
             PlayerY: player.Y,
             PlayerFacing: Session.PlayerFacing,
@@ -539,16 +575,107 @@ public sealed class SimulationHost
             HazardousTravelX: Session.PressureState.HazardousTravelCell?.X,
             HazardousTravelY: Session.PressureState.HazardousTravelCell?.Y,
             OverworldLandmarks: BuildOverworldLandmarks(),
-            TectonicBoundaries: BuildTectonicBoundaries(),
-            RiverEdgeMask: BuildRiverEdgeMask(),
-            RoadEdgeMask: BuildRoadEdgeMask(),
-            RoadCells: BuildRoadCells(),
+            TectonicBoundaries: _tectonicBuffer,
+            RiverEdgeMask: _riverEdgeBuffer,
+            RoadEdgeMask: _roadEdgeBuffer,
+            RoadCells: _roadCellBuffer,
             DebugFullBrightness: debugFullBrightness,
             RunOutcome: Session.Outcome,
             EscapeEnding: Session.EscapeEnding,
             RunEndTitle: Session.RunEndTitle,
             RunEndSummary: Session.RunEndSummary,
             CanReturnToOverworld: false);
+    }
+
+    private void EnsureOverworldStaticMasks()
+    {
+        if (_overworldStaticMasksInitialized)
+        {
+            return;
+        }
+
+        int size = Overworld.Width * Overworld.Height;
+        _cellBuffer ??= new ushort[size];
+        if (_cellBuffer.Length != size)
+        {
+            _cellBuffer = new ushort[size];
+        }
+
+        ReadOnlySpan<WorldCell> cells = Overworld.Cells;
+        for (int i = 0; i < size; i++)
+        {
+            _cellBuffer[i] = (ushort)cells[i].Biome;
+        }
+
+        if (Overworld.IslandPlan is not null)
+        {
+            _tectonicBuffer ??= new byte[size];
+            if (_tectonicBuffer.Length != size)
+            {
+                _tectonicBuffer = new byte[size];
+            }
+
+            IslandPlan plan = Overworld.IslandPlan;
+            int index = 0;
+            for (int y = 0; y < Overworld.Height; y++)
+            {
+                for (int x = 0; x < Overworld.Width; x++)
+                {
+                    _tectonicBuffer[index++] = (byte)plan.GetCell(x, y).BoundaryType;
+                }
+            }
+
+            _roadCellBuffer ??= new bool[size];
+            if (_roadCellBuffer.Length != size)
+            {
+                _roadCellBuffer = new bool[size];
+            }
+
+            Array.Clear(_roadCellBuffer, 0, size);
+            for (int y = 0; y < plan.Height; y++)
+            {
+                for (int x = 0; x < plan.Width; x++)
+                {
+                    if ((plan.GetCell(x, y).Role & IslandCellRole.Road) != 0)
+                    {
+                        _roadCellBuffer[Overworld.GetIndex(new WorldCoord(x, y))] = true;
+                    }
+                }
+            }
+        }
+        else
+        {
+            _tectonicBuffer = null;
+            _roadCellBuffer = null;
+        }
+
+        _riverEdgeBuffer ??= new byte[size];
+        if (_riverEdgeBuffer.Length != size)
+        {
+            _riverEdgeBuffer = new byte[size];
+        }
+
+        int riverIndex = 0;
+        for (int i = 0; i < size; i++)
+        {
+            ConnectionFlags flags = cells[i].ConnectionFlags;
+            _riverEdgeBuffer[riverIndex++] = (byte)(((ushort)flags >> 4) & 0x0F);
+        }
+
+        _roadEdgeBuffer ??= new byte[size];
+        if (_roadEdgeBuffer.Length != size)
+        {
+            _roadEdgeBuffer = new byte[size];
+        }
+
+        int roadIndex = 0;
+        for (int i = 0; i < size; i++)
+        {
+            ConnectionFlags flags = cells[i].ConnectionFlags;
+            _roadEdgeBuffer[roadIndex++] = (byte)((ushort)flags & 0x0F);
+        }
+
+        _overworldStaticMasksInitialized = true;
     }
 
     private OverworldLandmarkView[] BuildOverworldLandmarks()
@@ -568,108 +695,6 @@ public sealed class SimulationHost
                 landmark.Kind,
                 landmark.ObjectiveKind))
             .ToArray();
-    }
-
-    private byte[]? BuildTectonicBoundaries()
-    {
-        if (Overworld.IslandPlan is null)
-        {
-            return null;
-        }
-
-        int size = Overworld.Width * Overworld.Height;
-        _tectonicBuffer ??= new byte[size];
-        if (_tectonicBuffer.Length != size)
-        {
-            _tectonicBuffer = new byte[size];
-        }
-
-        IslandPlan plan = Overworld.IslandPlan;
-        int index = 0;
-        for (int y = 0; y < Overworld.Height; y++)
-        {
-            for (int x = 0; x < Overworld.Width; x++)
-            {
-                _tectonicBuffer[index++] = (byte)plan.GetCell(x, y).BoundaryType;
-            }
-        }
-
-        return _tectonicBuffer;
-    }
-
-    private byte[]? BuildRiverEdgeMask()
-    {
-        int size = Overworld.Width * Overworld.Height;
-        _riverEdgeBuffer ??= new byte[size];
-        if (_riverEdgeBuffer.Length != size)
-        {
-            _riverEdgeBuffer = new byte[size];
-        }
-
-        int index = 0;
-        for (int y = 0; y < Overworld.Height; y++)
-        {
-            for (int x = 0; x < Overworld.Width; x++)
-            {
-                ConnectionFlags flags = Overworld.GetCellValue(new WorldCoord(x, y)).ConnectionFlags;
-                _riverEdgeBuffer[index++] = (byte)(((ushort)flags >> 4) & 0x0F);
-            }
-        }
-
-        return _riverEdgeBuffer;
-    }
-
-    private byte[]? BuildRoadEdgeMask()
-    {
-        int size = Overworld.Width * Overworld.Height;
-        _roadEdgeBuffer ??= new byte[size];
-        if (_roadEdgeBuffer.Length != size)
-        {
-            _roadEdgeBuffer = new byte[size];
-        }
-
-        int index = 0;
-        for (int y = 0; y < Overworld.Height; y++)
-        {
-            for (int x = 0; x < Overworld.Width; x++)
-            {
-                ConnectionFlags flags = Overworld.GetCellValue(new WorldCoord(x, y)).ConnectionFlags;
-                _roadEdgeBuffer[index++] = (byte)((ushort)flags & 0x0F);
-            }
-        }
-
-        return _roadEdgeBuffer;
-    }
-
-    private bool[]? BuildRoadCells()
-    {
-        if (Overworld.IslandPlan is null)
-        {
-            return null;
-        }
-
-        int size = Overworld.Width * Overworld.Height;
-        _roadCellBuffer ??= new bool[size];
-        if (_roadCellBuffer.Length != size)
-        {
-            _roadCellBuffer = new bool[size];
-        }
-
-        Array.Clear(_roadCellBuffer, 0, size);
-
-        IslandPlan plan = Overworld.IslandPlan;
-        for (int y = 0; y < plan.Height; y++)
-        {
-            for (int x = 0; x < plan.Width; x++)
-            {
-                if ((plan.GetCell(x, y).Role & IslandCellRole.Road) != 0)
-                {
-                    _roadCellBuffer[Overworld.GetIndex(new WorldCoord(x, y))] = true;
-                }
-            }
-        }
-
-        return _roadCellBuffer;
     }
 
     private RenderSnapshot BuildLocalMapSnapshot()
@@ -794,7 +819,9 @@ public sealed class SimulationHost
             LocalX: viewMode == GameViewMode.LocalMap ? local.X : null,
             LocalY: viewMode == GameViewMode.LocalMap ? local.Y : null,
             LocationLabel: locationLabel,
-            TerrainOrBiome: terrainOrBiome);
+            TerrainOrBiome: terrainOrBiome,
+            StealthStatus: viewMode == GameViewMode.LocalMap ? Session.GetStealthStatusLabel() : string.Empty,
+            MovementModeLabel: Session.MovementMode.ToString());
     }
 
     private InventoryItemView[] BuildInventoryItems()

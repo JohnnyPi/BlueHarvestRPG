@@ -69,17 +69,23 @@ public static class IslandShapeDefaults
         ],
         DomainWarp = new IslandDomainWarpDefinition
         {
+            LobingFrequency = 0.8f,
+            LobingAmplitude = 0.22f,
             Frequency = 1.6f,
-            Amplitude = 0.07f,
-            Octaves = 3
+            Amplitude = 0.12f,
+            Octaves = 3,
+            LargeStrength = 0.14f,
+            MediumStrength = 0.10f,
+            SmallStrength = 0.04f
         },
         CoastlineDetail = new IslandCoastlineDetailDefinition
         {
             Frequency = 5f,
             Amplitude = 0.025f,
             PreserveLargeBays = true,
-            CellularAutomataIterations = 3,
-            ProceduralInletCount = 6
+            CellularAutomataIterations = 1,
+            ProceduralInletCount = 0,
+            PreferRiverMouthInlets = true
         }
     };
 
