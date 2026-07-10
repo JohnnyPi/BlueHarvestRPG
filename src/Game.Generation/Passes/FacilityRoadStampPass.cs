@@ -48,8 +48,7 @@ public sealed class FacilityRoadStampPass : IGenerationPass
             }
 
             var blueprint = context.BlueprintCatalog.ResolveById(structure.BlueprintId);
-            int doorGlobalX = structure.GlobalOriginX + blueprint.DoorX;
-            int doorGlobalY = structure.GlobalOriginY + blueprint.DoorY;
+            (int doorGlobalX, int doorGlobalY) = StructurePlacementQueries.DoorGlobal(structure, blueprint);
             StampApproachFromRoad(
                 map,
                 context,
@@ -141,8 +140,7 @@ public sealed class FacilityRoadStampPass : IGenerationPass
         foreach (StructurePlacement structure in context.IslandPlan.Structures)
         {
             var blueprint = context.BlueprintCatalog.ResolveById(structure.BlueprintId);
-            int doorGlobalX = structure.GlobalOriginX + blueprint.DoorX;
-            int doorGlobalY = structure.GlobalOriginY + blueprint.DoorY;
+            (int doorGlobalX, int doorGlobalY) = StructurePlacementQueries.DoorGlobal(structure, blueprint);
             if (globalX == doorGlobalX && globalY == doorGlobalY)
             {
                 return true;
@@ -161,6 +159,11 @@ public sealed class FacilityRoadStampPass : IGenerationPass
 
         int index = map.GetIndex(x, y);
         TerrainId terrain = map.Terrain[index];
+        if (terrain == TerrainId.ShallowFord)
+        {
+            return;
+        }
+
         if (terrain is TerrainId.Wall or TerrainId.InteriorWall or TerrainId.Door or TerrainId.Fence
             or TerrainId.Floor or TerrainId.StructureExit or TerrainId.Dock)
         {
@@ -168,13 +171,5 @@ public sealed class FacilityRoadStampPass : IGenerationPass
         }
 
         map.SetTerrain(x, y, TerrainId.Road, TileFlags.None);
-        if (y + 1 < LocalMap.Height)
-        {
-            int below = map.GetIndex(x, y + 1);
-            if (map.Terrain[below] is not (TerrainId.Wall or TerrainId.InteriorWall or TerrainId.Door))
-            {
-                map.SetTerrain(x, y + 1, TerrainId.Road, TileFlags.None);
-            }
-        }
     }
 }

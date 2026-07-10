@@ -1,3 +1,4 @@
+using Game.Content;
 using Game.Content.Definitions;
 using Game.Generation.Island;
 using Game.Generation.Island.Stages;
@@ -132,7 +133,19 @@ public class IslandGenerationQualityTests
             edgeCoastForbiddenBand: config.OceanFrame.MinCoastDistanceFromEdge / 2,
             edgeLinearityBand: config.OceanFrame.EdgeLinearityBand);
 
-        Assert.True(report.BiomeSingletonCount <= 2, $"Expected <=2 singletons, got {report.BiomeSingletonCount}.");
+        string singletonDetails = string.Join(
+            ", ",
+            Enum.GetValues<BiomeId>()
+                .SelectMany(biome => IslandQualityMetrics.FindBiomeComponents(plan, biome)
+                    .Where(component => component.Count == 1)
+                    .Select(component =>
+                    {
+                        int index = component[0];
+                        return $"{biome}@({index % plan.Width},{index / plan.Width})";
+                    })));
+        Assert.True(
+            report.BiomeSingletonCount <= 2,
+            $"Expected <=2 singletons, got {report.BiomeSingletonCount}: {singletonDetails}.");
     }
 
     [Fact]
@@ -202,15 +215,15 @@ public class IslandGenerationQualityTests
     }
 
     [Fact]
-    public void MaskQualityStage_ShrinksOverscanShapeToFitCropWindow()
+    public void MaskQualityStage_SelectsLargestValidScaleForCropWindow()
     {
         var config = CreateProductionLikeConfig();
         config.IslandShape = IslandShapeDefaults.CreateNublar();
         config.OceanFrame = new OceanFrameDefinition
         {
-            OverscanScale = 1.25f,
-            MinLandDistanceFromEdge = 40,
-            MinCoastDistanceFromEdge = 24,
+            OverscanScale = 1.30f,
+            MinLandDistanceFromEdge = 24,
+            MinCoastDistanceFromEdge = 16,
             MaxRegenerationAttempts = 8,
             MaxAxisAlignedCoastRun = 20,
             EdgeLinearityBand = 24,
@@ -226,7 +239,9 @@ public class IslandGenerationQualityTests
             cropSize,
             cropSize,
             seed: 4242UL,
-            out MaskQualityResult result);
+            out MaskQualityResult result,
+            out _,
+            out _);
 
         Assert.True(valid, $"Mask quality failed: land={result.LandViolations}, coast={result.CoastViolations}, run={result.MaxAxisAlignedCoastRun}");
         Assert.Equal(0, result.LandViolations);
@@ -241,9 +256,9 @@ public class IslandGenerationQualityTests
         config.RegionCount = 24;
         config.OceanFrame = new OceanFrameDefinition
         {
-            OverscanScale = 1.25f,
-            MinLandDistanceFromEdge = 40,
-            MinCoastDistanceFromEdge = 24,
+            OverscanScale = 1.30f,
+            MinLandDistanceFromEdge = 24,
+            MinCoastDistanceFromEdge = 16,
             MaxRegenerationAttempts = 8,
             MaxAxisAlignedCoastRun = 20,
             EdgeLinearityBand = 24,
@@ -252,7 +267,7 @@ public class IslandGenerationQualityTests
 
         IslandPlan plan = new IslandPlanner(config).Generate(256, 256, seed: 4242UL);
 
-        Assert.True(plan.OceanFrameValidated, "Overscan mask should shrink to fit the crop window.");
+        Assert.True(plan.OceanFrameValidated, "Overscan mask should select a valid crop-window scale.");
         int minLandDist = IslandQualityMetrics.MinLandDistanceFromEdge(plan);
         Assert.True(minLandDist >= config.OceanFrame.MinLandDistanceFromEdge / 2,
             $"Land was only {minLandDist} cells from map edge.");
@@ -263,6 +278,85 @@ public class IslandGenerationQualityTests
             edgeBand: config.OceanFrame.EdgeLinearityBand);
         Assert.True(maxRun <= config.OceanFrame.MaxAxisAlignedCoastRun,
             $"Horizontal coast run was {maxRun} cells.");
+    }
+
+    [Fact]
+    public void IslandGenerator_Regression8478919930192148244_HasValidFrameAndVariableBeach()
+    {
+        const ulong seed = 8478919930192148244UL;
+        GameContentBundle bundle = new ContentLoader().LoadAll();
+        IslandDefinition config = bundle.Island;
+        var progress = new IslandGenerationProgressReporter();
+        IslandPlan plan = new IslandPlanner(
+            config,
+            bundle.CreateBlueprintCatalog(),
+            bundle.BiomeRules,
+            new GenerationDiagnosticsOptions
+            {
+                CaptureSnapshots = false,
+                Progress = progress,
+            }).Generate(config.OverworldSize, config.OverworldSize, seed);
+        IslandGenerationDiagnostics diagnostics = plan.GenerationDiagnostics;
+
+        Assert.True(diagnostics.OceanFramePassed,
+            $"Frame failed: land={diagnostics.LandFrameViolations}, coast={diagnostics.CoastFrameViolations}, run={diagnostics.MaxAxisAlignedCoastRun}.");
+        Assert.NotEmpty(diagnostics.AttemptedShapeScales);
+        Assert.InRange(diagnostics.SelectedShapeScale, 0.35f, 1f);
+        IslandGenerationProgressSnapshot timing = progress.GetSnapshot();
+        string slowestStages = string.Join(
+            ", ",
+            timing.CompletedStages
+                .OrderByDescending(stage => stage.DurationMs)
+                .Take(8)
+                .Select(stage => $"{stage.Name}={stage.DurationMs:F0}ms"));
+        Assert.True(
+            diagnostics.CroppedLandCoverage is >= 0.20f and <= 0.22f,
+            $"Coverage {diagnostics.CroppedLandCoverage:F3} outside target; slowest stages: {slowestStages}.");
+        int minLandX = plan.Cells.Select((cell, index) => (cell, index))
+            .Where(item => item.cell.IsLand).Min(item => item.index % plan.Width);
+        int maxLandX = plan.Cells.Select((cell, index) => (cell, index))
+            .Where(item => item.cell.IsLand).Max(item => item.index % plan.Width);
+        int minLandY = plan.Cells.Select((cell, index) => (cell, index))
+            .Where(item => item.cell.IsLand).Min(item => item.index / plan.Width);
+        int maxLandY = plan.Cells.Select((cell, index) => (cell, index))
+            .Where(item => item.cell.IsLand).Max(item => item.index / plan.Width);
+        Assert.True(Math.Max(maxLandX - minLandX, maxLandY - minLandY) >= plan.Width * 0.40f,
+            "Main landmass diameter did not occupy enough of the crop.");
+        Assert.All(
+            plan.Cells.Select((cell, index) => (cell, index)).Where(item => item.cell.Biome == BiomeId.Ocean),
+            item => Assert.True(plan.ExteriorOcean[item.index], $"Enclosed Ocean at index {item.index}."));
+
+        var observedWidths = plan.Cells
+            .Select((cell, index) => (cell, index))
+            .Where(item => item.cell.IsLand && item.cell.Biome == BiomeId.Beach)
+            .Select(item => plan.BeachWidth[item.index])
+            .ToList();
+        Assert.NotEmpty(observedWidths);
+        Assert.All(observedWidths, width =>
+            Assert.InRange(width, config.MinBeachCoastDistance, config.MaxBeachCoastDistance));
+        Assert.True(observedWidths.Select(width => MathF.Round(width, 3)).Distinct().Count() >= 3,
+            "Expected multiple smoothly varying beach widths.");
+        Assert.Contains(
+            plan.Cells.Select((cell, index) => (cell, index))
+                .Where(item => item.cell.IsLand && item.cell.Biome == BiomeId.Beach),
+            item => MathF.Abs(plan.Concavity[item.index]) > 0.0001f);
+
+        for (int i = 0; i < plan.Cells.Length; i++)
+        {
+            if (plan.Cells[i].IsLand && plan.CoastDistance[i] <= plan.BeachWidth[i])
+            {
+                Assert.Equal(BiomeId.Beach, plan.Cells[i].Biome);
+            }
+        }
+    }
+
+    [Fact]
+    public void OverscanShapeFitting_UsesRequestedCentroidCropOffset()
+    {
+        float centered = OverscanShapeFitting.ComputeSafeNormalizedHalfExtent(130, 100, 10, cropOffset: 15);
+        float shifted = OverscanShapeFitting.ComputeSafeNormalizedHalfExtent(130, 100, 10, cropOffset: 22);
+
+        Assert.True(shifted < centered);
     }
 
     [Fact]

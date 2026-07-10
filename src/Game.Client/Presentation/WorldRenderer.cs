@@ -33,6 +33,10 @@ public sealed class WorldRenderer
     private readonly Color _visitorCenterLandmarkColor = new(0xFF, 0xD7, 0x00, 210);
     private readonly Color _hotelLandmarkColor = new(0x6B, 0xA3, 0xD6, 210);
     private readonly Color _dockLandmarkColor = new(0x8B, 0x5A, 0x2B, 210);
+    private readonly Color _helipadLandmarkColor = new(0xD9, 0xD9, 0xE6, 210);
+    private readonly Color _restaurantLandmarkColor = new(0xE6, 0x78, 0x78, 210);
+    private readonly Color _attractionLandmarkColor = new(0xB0, 0x72, 0xD8, 210);
+    private readonly Color _maintenanceLandmarkColor = new(0xD0, 0x8A, 0x45, 210);
     private readonly Color _ruinLandmarkColor = new(0x99, 0x88, 0x77, 200);
     private readonly Color _volcanicLandmarkColor = new(0xE6, 0x6A, 0x3A, 210);
     private readonly Color _siteLandmarkColor = new(0x7A, 0x9E, 0x6A, 180);
@@ -108,7 +112,8 @@ public sealed class WorldRenderer
             _terrainColors,
             _unseenColor,
             _exploredDimColor,
-            _hazardTravelColor);
+            _hazardTravelColor,
+            _bundle.ElevationShading);
 
         _tileTextures = new TileTextureCatalog(_content, _bundle.Tiles);
         _playerSprite = new PlayerSpriteRenderer(_content, _bundle.Player);
@@ -236,7 +241,7 @@ public sealed class WorldRenderer
             drawRects += DrawOverworldGeology(snapshot, camera, tileSize, minGridX, minGridY, maxGridX, maxGridY);
         }
 
-        if (snapshot.ViewMode == GameViewMode.Overworld && tileSize >= 8)
+        if (snapshot.ViewMode == GameViewMode.Overworld)
         {
             drawRects += DrawOverworldLandmarks(snapshot, camera, tileSize, cellSize);
         }
@@ -347,15 +352,7 @@ public sealed class WorldRenderer
                     ? _tileTextures!.GetBiome((BiomeId)cellValue)
                     : _tileTextures!.GetTerrain((SimTerrain)cellValue);
 
-                Color tint = CellVisibilityTint.Resolve(
-                    snapshot,
-                    x,
-                    y,
-                    index,
-                    Color.White,
-                    _unseenColor,
-                    _exploredDimColor,
-                    _hazardTravelColor);
+                Color tint = ResolveCellTint(snapshot, x, y, index, Color.White);
 
                 Vector2 screen = camera.WorldToScreen(x, y);
                 int screenX = (int)Math.Round(screen.X);
@@ -374,16 +371,46 @@ public sealed class WorldRenderer
                     Color fallback = snapshot.ViewMode == GameViewMode.Overworld
                         ? SafeBiomeColor(cellValue)
                         : SafeTerrainColor(cellValue);
-                    fallback = CellVisibilityTint.Resolve(
+                    fallback = ResolveCellTint(snapshot, x, y, index, fallback);
+                    DrawRect(screenX, screenY, tilePixel, tilePixel, fallback);
+                    drawRects++;
+                }
+
+                if (snapshot.ViewMode == GameViewMode.Overworld
+                    && snapshot.LavaCells is not null
+                    && snapshot.LavaCells[index])
+                {
+                    Color lavaTint = CellVisibilityTint.Resolve(
                         snapshot,
                         x,
                         y,
                         index,
-                        fallback,
+                        Color.White,
                         _unseenColor,
                         _exploredDimColor,
                         _hazardTravelColor);
-                    DrawRect(screenX, screenY, tilePixel, tilePixel, fallback);
+                    Texture2D? lavaTexture = _tileTextures!.GetTerrain(SimTerrain.Lava);
+                    if (lavaTexture is not null)
+                    {
+                        _spriteBatch.Draw(
+                            lavaTexture,
+                            new Rectangle(screenX, screenY, tilePixel, tilePixel),
+                            lavaTint);
+                    }
+                    else
+                    {
+                        Color lavaColor = CellVisibilityTint.Resolve(
+                            snapshot,
+                            x,
+                            y,
+                            index,
+                            SafeTerrainColor((ushort)SimTerrain.Lava),
+                            _unseenColor,
+                            _exploredDimColor,
+                            _hazardTravelColor);
+                        DrawRect(screenX, screenY, tilePixel, tilePixel, lavaColor);
+                    }
+
                     drawRects++;
                 }
 
@@ -420,6 +447,34 @@ public sealed class WorldRenderer
         }
 
         return drawRects;
+    }
+
+    private Color ResolveCellTint(
+        RenderSnapshot snapshot,
+        int x,
+        int y,
+        int index,
+        Color baseTint)
+    {
+        if (snapshot.ViewMode == GameViewMode.Overworld &&
+            snapshot.ElevationData is not null)
+        {
+            float brightness = ElevationShadeResolver.ResolveBrightness(
+                (BiomeId)snapshot.CellData[index],
+                snapshot.ElevationData[index],
+                _bundle.ElevationShading);
+            baseTint = ElevationShadeTint.Apply(baseTint, brightness);
+        }
+
+        return CellVisibilityTint.Resolve(
+            snapshot,
+            x,
+            y,
+            index,
+            baseTint,
+            _unseenColor,
+            _exploredDimColor,
+            _hazardTravelColor);
     }
 
     private int DrawOverworldGeology(
@@ -575,13 +630,8 @@ public sealed class WorldRenderer
             int rectH = Math.Max(2, (int)Math.Round(heightFrac * cellPixel));
 
             DrawRect(rectX, rectY, rectW, rectH, markerColor);
-            drawRects++;
-
-            int centerX = rectX + rectW / 2;
-            int centerY = rectY + rectH / 2;
-            int dotSize = Math.Max(2, cellPixel / 6);
-            DrawRect(centerX - dotSize / 2, centerY - dotSize / 2, dotSize, dotSize, markerColor * 1.2f);
-            drawRects++;
+            DrawBorder(rectX, rectY, rectW, rectH, markerColor * 1.3f, Math.Max(1, cellPixel / 12));
+            drawRects += 2;
         }
 
         return drawRects;
@@ -597,7 +647,7 @@ public sealed class WorldRenderer
         int minCellX = landmark.GlobalOriginX / LocalMap.Width;
         int minCellY = landmark.GlobalOriginY / LocalMap.Height;
         int maxCellX = (landmark.GlobalOriginX + landmark.FootprintWidth - 1) / LocalMap.Width;
-        int maxCellY = (landmark.GlobalOriginY + landmark.FootprintHeight - 1) / LocalMap.Width;
+        int maxCellY = (landmark.GlobalOriginY + landmark.FootprintHeight - 1) / LocalMap.Height;
 
         for (int cellY = minCellY; cellY <= maxCellY; cellY++)
         {
@@ -639,6 +689,14 @@ public sealed class WorldRenderer
                 _hotelLandmarkColor,
             OverworldLandmarkKind.Structure when landmark.Name.StartsWith("Dock", StringComparison.Ordinal) =>
                 _dockLandmarkColor,
+            OverworldLandmarkKind.Structure when landmark.Name.StartsWith("Helipad", StringComparison.Ordinal) =>
+                _helipadLandmarkColor,
+            OverworldLandmarkKind.Structure when landmark.Name.StartsWith("Restaurant", StringComparison.Ordinal) =>
+                _restaurantLandmarkColor,
+            OverworldLandmarkKind.Structure when landmark.Name.StartsWith("Attraction", StringComparison.Ordinal) =>
+                _attractionLandmarkColor,
+            OverworldLandmarkKind.Structure when landmark.Name.StartsWith("Maintenance", StringComparison.Ordinal) =>
+                _maintenanceLandmarkColor,
             OverworldLandmarkKind.Structure => _structureLandmarkColor,
             OverworldLandmarkKind.Ruin => _ruinLandmarkColor,
             OverworldLandmarkKind.Volcanic => _volcanicLandmarkColor,

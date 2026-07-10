@@ -1,6 +1,5 @@
 using Game.Content.Definitions;
 using Game.Generation.Island;
-using Game.Generation.Noise;
 using Game.Simulation.Seeds;
 using Game.Simulation.World.Island;
 
@@ -12,6 +11,12 @@ public sealed class MaskQualityResult
     public int LandViolations { get; init; }
     public int CoastViolations { get; init; }
     public int MaxAxisAlignedCoastRun { get; init; }
+    public float LandCoverageRatio { get; init; }
+    public float ShapeScale { get; init; }
+    public ulong MaskSeed { get; init; }
+    public int CropOffsetX { get; init; }
+    public int CropOffsetY { get; init; }
+    public IReadOnlyList<float> AttemptedScales { get; init; } = [];
 }
 
 public static class MaskQualityStage
@@ -22,12 +27,20 @@ public static class MaskQualityStage
         IslandPlan overscanPlan,
         IslandDefinition config,
         int cropWidth,
-        int cropHeight)
+        int cropHeight,
+        int? offsetX = null,
+        int? offsetY = null)
     {
         OceanFrameDefinition frame = config.OceanFrame;
-        int offsetX = (overscanPlan.Width - cropWidth) / 2;
-        int offsetY = (overscanPlan.Height - cropHeight) / 2;
         float landThreshold = config.IslandShape.LandThreshold;
+
+        (int resolvedOffsetX, int resolvedOffsetY) = offsetX is int ox && offsetY is int oy
+            ? (ox, oy)
+            : PlanCropUtility.ComputeLandmassCentroidCropOffset(
+                overscanPlan,
+                cropWidth,
+                cropHeight,
+                landThreshold);
 
         int landViolations = 0;
         int coastViolations = 0;
@@ -36,8 +49,8 @@ public static class MaskQualityStage
         {
             for (int x = 0; x < cropWidth; x++)
             {
-                int sourceX = x + offsetX;
-                int sourceY = y + offsetY;
+                int sourceX = x + resolvedOffsetX;
+                int sourceY = y + resolvedOffsetY;
                 int edgeDist = Math.Min(
                     Math.Min(x, y),
                     Math.Min(cropWidth - 1 - x, cropHeight - 1 - y));
@@ -61,8 +74,8 @@ public static class MaskQualityStage
 
         int maxRun = ComputeMaxAxisAlignedCoastRunInCrop(
             overscanPlan,
-            offsetX,
-            offsetY,
+            resolvedOffsetX,
+            resolvedOffsetY,
             cropWidth,
             cropHeight,
             landThreshold,
@@ -71,6 +84,18 @@ public static class MaskQualityStage
         bool passed = landViolations == 0
             && coastViolations == 0
             && maxRun <= frame.MaxAxisAlignedCoastRun;
+        int landCount = 0;
+        for (int y = 0; y < cropHeight; y++)
+        {
+            for (int x = 0; x < cropWidth; x++)
+            {
+                int index = (y + resolvedOffsetY) * overscanPlan.Width + x + resolvedOffsetX;
+                if (overscanPlan.IslandMask[index] > landThreshold)
+                {
+                    landCount++;
+                }
+            }
+        }
 
         return new MaskQualityResult
         {
@@ -78,6 +103,9 @@ public static class MaskQualityStage
             LandViolations = landViolations,
             CoastViolations = coastViolations,
             MaxAxisAlignedCoastRun = maxRun,
+            LandCoverageRatio = landCount / (float)(cropWidth * cropHeight),
+            CropOffsetX = resolvedOffsetX,
+            CropOffsetY = resolvedOffsetY,
         };
     }
 
@@ -88,66 +116,144 @@ public static class MaskQualityStage
         int cropHeight,
         ulong seed,
         out MaskQualityResult result,
+        out int cropOffsetX,
+        out int cropOffsetY,
         IslandGenerationProgressReporter? progress = null)
     {
         OceanFrameDefinition frame = config.OceanFrame;
-        int attempts = Math.Max(1, frame.MaxRegenerationAttempts);
-        float shapeScale = OverscanShapeFitting.ComputeInitialShapeScale(
-            overscanPlan.Width,
-            overscanPlan.Height,
-            cropWidth,
-            cropHeight,
-            config);
-        result = new MaskQualityResult();
+        int evaluationBudget = Math.Max(4, frame.MaxRegenerationAttempts);
+        int candidateCount = Math.Clamp(evaluationBudget / 8, 1, 3);
+        int evaluationsPerCandidate = Math.Clamp(evaluationBudget / candidateCount, 4, 6);
+        cropOffsetX = (overscanPlan.Width - cropWidth) / 2;
+        cropOffsetY = (overscanPlan.Height - cropHeight) / 2;
+        var attemptedScales = new List<float>();
+        var validCandidates = new List<MaskQualityResult>();
+        var evaluatedCandidates = new List<MaskQualityResult>();
 
-        for (int attempt = 0; attempt < attempts; attempt++)
+        MaskQualityResult RunAttempt(ulong attemptSeed, float scale)
         {
-            string attemptPrefix = attempts > 1 ? $"Mask {attempt + 1}/{attempts}: " : string.Empty;
-            ulong attemptSeed = SeedUtility.DeriveStage(seed, StageSalt + (uint)attempt);
-            RunSubStage(progress, $"{attemptPrefix}island mask", () =>
-                IslandMaskStage.Execute(
-                    overscanPlan,
-                    config,
-                    attemptSeed,
-                    overscanGeneration: true,
-                    shapeScale));
-            RunSubStage(progress, $"{attemptPrefix}coast distance", () =>
-                CoastDistanceStage.Execute(overscanPlan, config));
-            RunSubStage(progress, $"{attemptPrefix}coastline cleanup", () =>
-                CoastlineCleanupStage.Execute(overscanPlan, config));
-            RunSubStage(progress, $"{attemptPrefix}coastline variation", () =>
-                CoastlineVariationStage.Execute(overscanPlan, config, attemptSeed));
-
-            result = RunSubStage(progress, $"{attemptPrefix}validation", () =>
-                ValidateCropWindow(overscanPlan, config, cropWidth, cropHeight));
-            if (result.Passed)
+            IslandMaskStage.Execute(overscanPlan, config, attemptSeed, overscanGeneration: true, scale);
+            CoastlineCleanupStage.Execute(overscanPlan, config, recomputeCoastDistance: false);
+            CoastlineVariationStage.Execute(overscanPlan, config, attemptSeed);
+            attemptedScales.Add(scale);
+            MaskQualityResult measured = ValidateCropWindow(overscanPlan, config, cropWidth, cropHeight);
+            var candidate = new MaskQualityResult
             {
-                return true;
+                Passed = measured.Passed,
+                LandViolations = measured.LandViolations,
+                CoastViolations = measured.CoastViolations,
+                MaxAxisAlignedCoastRun = measured.MaxAxisAlignedCoastRun,
+                LandCoverageRatio = measured.LandCoverageRatio,
+                ShapeScale = scale,
+                MaskSeed = attemptSeed,
+                CropOffsetX = measured.CropOffsetX,
+                CropOffsetY = measured.CropOffsetY,
+            };
+            evaluatedCandidates.Add(candidate);
+            return candidate;
+        }
+
+        for (int candidateIndex = 0; candidateIndex < candidateCount; candidateIndex++)
+        {
+            ulong candidateSeed = SeedUtility.DeriveStage(seed, StageSalt + (uint)candidateIndex);
+            string prefix = candidateCount > 1 ? $"Mask {candidateIndex + 1}/{candidateCount}: " : string.Empty;
+            MaskQualityResult fullScale = RunSubStage(
+                progress,
+                $"{prefix}fit scale 1.000",
+                () => RunAttempt(candidateSeed, 1f));
+            if (fullScale.Passed)
+            {
+                validCandidates.Add(fullScale);
+                continue;
             }
 
-            shapeScale *= 0.94f;
-        }
-
-        while (!result.Passed && shapeScale > 0.45f && attempts < frame.MaxRegenerationAttempts * 3)
-        {
-            shapeScale *= 0.94f;
-            ulong attemptSeed = SeedUtility.DeriveStage(seed, StageSalt + (uint)attempts);
-            attempts++;
-
-            IslandMaskStage.Execute(
-                overscanPlan,
+            float estimatedScale = OverscanShapeFitting.ComputeInitialShapeScale(
+                overscanPlan.Width,
+                overscanPlan.Height,
+                cropWidth,
+                cropHeight,
                 config,
-                attemptSeed,
-                overscanGeneration: true,
-                shapeScale);
-            CoastDistanceStage.Execute(overscanPlan, config);
-            CoastlineCleanupStage.Execute(overscanPlan, config);
-            CoastlineVariationStage.Execute(overscanPlan, config, attemptSeed);
-            result = ValidateCropWindow(overscanPlan, config, cropWidth, cropHeight);
+                fullScale.CropOffsetX,
+                fullScale.CropOffsetY);
+            float low = Math.Clamp(estimatedScale, 0.35f, 0.95f);
+            MaskQualityResult lowResult = RunAttempt(candidateSeed, low);
+            if (!lowResult.Passed && low > 0.35f)
+            {
+                low = 0.35f;
+                lowResult = RunAttempt(candidateSeed, low);
+            }
+
+            if (!lowResult.Passed)
+            {
+                continue;
+            }
+
+            MaskQualityResult largestValid = lowResult;
+            float high = 1f;
+            for (int evaluation = 2; evaluation < evaluationsPerCandidate; evaluation++)
+            {
+                float middle = (low + high) * 0.5f;
+                MaskQualityResult middleResult = RunAttempt(candidateSeed, middle);
+                if (middleResult.Passed)
+                {
+                    low = middle;
+                    largestValid = middleResult;
+                }
+                else
+                {
+                    high = middle;
+                }
+            }
+
+            validCandidates.Add(largestValid);
         }
 
-        return result.Passed;
+        if (validCandidates.Count == 0)
+        {
+            MaskQualityResult bestFailed = evaluatedCandidates
+                .OrderBy(candidate => candidate.LandViolations + candidate.CoastViolations)
+                .ThenBy(candidate => Math.Max(
+                    0,
+                    candidate.MaxAxisAlignedCoastRun - frame.MaxAxisAlignedCoastRun))
+                .ThenByDescending(candidate => candidate.LandCoverageRatio)
+                .ThenByDescending(candidate => candidate.ShapeScale)
+                .First();
+            MaskQualityResult failed = RunAttempt(bestFailed.MaskSeed, bestFailed.ShapeScale);
+            result = WithAttempts(failed, attemptedScales);
+            cropOffsetX = failed.CropOffsetX;
+            cropOffsetY = failed.CropOffsetY;
+            return false;
+        }
+
+        MaskQualityResult selected = validCandidates
+            .OrderByDescending(candidate => candidate.LandCoverageRatio)
+            .ThenBy(candidate => candidate.MaxAxisAlignedCoastRun)
+            .ThenByDescending(candidate => candidate.ShapeScale)
+            .ThenBy(candidate => candidate.MaskSeed)
+            .First();
+        MaskQualityResult final = RunAttempt(selected.MaskSeed, selected.ShapeScale);
+        result = WithAttempts(final, attemptedScales);
+        cropOffsetX = final.CropOffsetX;
+        cropOffsetY = final.CropOffsetY;
+        return true;
     }
+
+    private static MaskQualityResult WithAttempts(
+        MaskQualityResult source,
+        IReadOnlyList<float> attemptedScales)
+        => new()
+        {
+            Passed = source.Passed,
+            LandViolations = source.LandViolations,
+            CoastViolations = source.CoastViolations,
+            MaxAxisAlignedCoastRun = source.MaxAxisAlignedCoastRun,
+            LandCoverageRatio = source.LandCoverageRatio,
+            ShapeScale = source.ShapeScale,
+            MaskSeed = source.MaskSeed,
+            CropOffsetX = source.CropOffsetX,
+            CropOffsetY = source.CropOffsetY,
+            AttemptedScales = attemptedScales.ToArray(),
+        };
 
     private static void RunSubStage(IslandGenerationProgressReporter? progress, string name, Action action)
     {

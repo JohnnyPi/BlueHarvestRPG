@@ -40,6 +40,8 @@ public sealed record RenderSnapshot(
     byte[]? RiverEdgeMask = null,
     byte[]? RoadEdgeMask = null,
     bool[]? RoadCells = null,
+    bool[]? LavaCells = null,
+    float[]? ElevationData = null,
     bool DebugFullBrightness = false,
     RunOutcome RunOutcome = RunOutcome.None,
     EscapeEndingKind EscapeEnding = EscapeEndingKind.None,

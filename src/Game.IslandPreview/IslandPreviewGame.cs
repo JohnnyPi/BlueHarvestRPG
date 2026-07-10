@@ -4,6 +4,7 @@ using Game.Client.Presentation;
 using Game.Client.Presentation.Camera;
 using Game.Client.UI;
 using Game.Content;
+using Game.Content.Definitions;
 using Game.Generation.Island;
 using Game.IslandPreview.Generation;
 using Game.IslandPreview.UI;
@@ -43,6 +44,7 @@ public sealed class IslandPreviewGame : Microsoft.Xna.Framework.Game
     private const int ClickDragThresholdPixels = 6;
     private Task<Overworld>? _generationTask;
     private Overworld? _generatedWorld;
+    private BiomeRulesDefinition? _generatedBiomeRules;
     private IslandGenerationProgressReporter? _generationProgress;
     private FieldOverlayMode _fieldOverlay = FieldOverlayMode.Off;
 
@@ -50,6 +52,7 @@ public sealed class IslandPreviewGame : Microsoft.Xna.Framework.Game
     {
         Off,
         CoastDistance,
+        CoastalWidthVariation,
         IslandMask,
         Concavity,
         DistanceToMapEdge,
@@ -290,6 +293,7 @@ public sealed class IslandPreviewGame : Microsoft.Xna.Framework.Game
             Seed = _panel.Seed,
             Progress = _generationProgress = new IslandGenerationProgressReporter(),
         };
+        _generatedBiomeRules = request.BiomeRules;
 
         _panel.SetGenerating(true, "Starting...");
         _inspectionPanel.ClearTileInspection();
@@ -319,7 +323,7 @@ public sealed class IslandPreviewGame : Microsoft.Xna.Framework.Game
         {
             Overworld world = _generationTask.GetAwaiter().GetResult();
             _generatedWorld = world;
-            _worldHost.ApplyGeneratedWorld(world);
+            _worldHost.ApplyGeneratedWorld(world, _generatedBiomeRules);
             _snapshot = _worldHost.Snapshot;
             if (!_cameraCentered && _snapshot is not null)
             {
@@ -349,7 +353,21 @@ public sealed class IslandPreviewGame : Microsoft.Xna.Framework.Game
         }
 
         IslandGenerationProgressSnapshot snapshot = _generationProgress.GetSnapshot();
-        return $"Generated {world.Width}x{world.Height} in {IslandGenerationProgressSnapshot.FormatSeconds(snapshot.TotalElapsedMs)}";
+        IslandGenerationDiagnostics? diagnostics = world.IslandPlan?.GenerationDiagnostics;
+        if (diagnostics is null || diagnostics.AttemptedShapeScales.Count == 0)
+        {
+            return $"Generated {world.Width}x{world.Height} in {IslandGenerationProgressSnapshot.FormatSeconds(snapshot.TotalElapsedMs)}";
+        }
+
+        string frameStatus = diagnostics.OceanFramePassed ? "PASS" : "FAIL";
+        return $"Frame {frameStatus} | scale {diagnostics.SelectedShapeScale:0.000} "
+            + $"crop ({diagnostics.CropOffsetX},{diagnostics.CropOffsetY}) "
+            + $"land {diagnostics.CroppedLandCoverage:P1} "
+            + $"beach {diagnostics.MinObservedBeachWidth:0.000}-{diagnostics.MaxObservedBeachWidth:0.000} "
+            + $"shallow {diagnostics.MinObservedShallowWaterWidth:0.000}-{diagnostics.MaxObservedShallowWaterWidth:0.000} "
+            + $"violations L{diagnostics.LandFrameViolations}/C{diagnostics.CoastFrameViolations} "
+            + $"run {diagnostics.MaxAxisAlignedCoastRun} | "
+            + IslandGenerationProgressSnapshot.FormatSeconds(snapshot.TotalElapsedMs);
     }
 
     private void DrawGeneratingOverlay(int mapLeft, int mapWidth, int mapHeight)
@@ -467,6 +485,7 @@ public sealed class IslandPreviewGame : Microsoft.Xna.Framework.Game
         return _fieldOverlay switch
         {
             FieldOverlayMode.CoastDistance => plan.CoastDistance,
+            FieldOverlayMode.CoastalWidthVariation => plan.CoastalWidthVariation,
             FieldOverlayMode.IslandMask => plan.IslandMask,
             FieldOverlayMode.Concavity => plan.Concavity,
             FieldOverlayMode.DistanceToMapEdge => IslandQualityMetrics.ComputeDistanceToMapEdgeField(plan),

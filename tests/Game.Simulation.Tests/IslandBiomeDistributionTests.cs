@@ -76,7 +76,9 @@ public class IslandBiomeDistributionTests
 
         Assert.True(landCells > 0);
         Assert.True(oceanCells > 0);
-        Assert.True(landCells > oceanCells);
+        Assert.True(
+            landCells > oceanCells,
+            $"Expected majority land, found land={landCells}, ocean={oceanCells}.");
     }
 
     [Fact]

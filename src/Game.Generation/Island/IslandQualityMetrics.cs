@@ -44,12 +44,20 @@ public static class IslandQualityMetrics
           int minSize = minPatchSizes.TryGetValue(biome, out int configured) ? configured : 12;
           foreach (List<int> component in FindBiomeComponents(plan, biome))
           {
-              if (component.Count == 1)
+              bool intentionalProtectedPatch = component.All(index =>
+              {
+                  int x = index % plan.Width;
+                  int y = index / plan.Width;
+                  return BiomeBalanceHelper.IsProtectedLandmarkCell(plan, x, y)
+                      || (plan.IsRiverCell.Length > index && plan.IsRiverCell[index]);
+              });
+
+              if (component.Count == 1 && !intentionalProtectedPatch)
               {
                   singletonCount++;
               }
 
-              if (component.Count < minSize)
+              if (component.Count < minSize && !intentionalProtectedPatch)
               {
                   tinyPatchCount++;
               }

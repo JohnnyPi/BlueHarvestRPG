@@ -25,6 +25,7 @@ public sealed class IslandPlanner
 
     public IslandPlan Generate(int width, int height, ulong seed)
     {
+        ValidateConfiguration();
         IslandPlan plan = CreatePlanWithMask(width, height, seed);
 
         RunStage("Voronoi regions", () => VoronoiRegionStage.Execute(plan, _config, seed));
@@ -38,14 +39,17 @@ public sealed class IslandPlanner
 
         RunStage("Volcanic activity", () => VolcanicActivityStage.Execute(plan, _config, seed));
         RunStage("Erosion", () => ErosionStage.Execute(plan, _config, seed));
+        RunStage("Lava flows", () => LavaFlowStage.Execute(plan, _config, seed));
         RunStage("Landmass reconcile", () => LandmassStage.Reconcile(plan, _config));
         CaptureSnapshot(plan, IslandGenerationCheckpoint.AfterReconcile2);
 
         RunStage("Land connectivity", () => LandConnectivityStage.Execute(plan, _config));
         CaptureSnapshot(plan, IslandGenerationCheckpoint.AfterLandConnectivity);
 
-        RunStage("Coast distance", () => CoastDistanceStage.Execute(plan, _config));
+        RunStage("Final shoreline", () => FinalShorelineStage.Execute(plan, _config));
+        RunStage("Final river mouths", () => ErosionStage.ReconcileRiverMouths(plan, _config));
         RunStage("Derived fields", () => DerivedFieldsStage.Execute(plan, _config));
+        RunStage("Coastal widths", () => CoastalWidthStage.Execute(plan, _config, seed));
         RunStage("Coastal landforms", () => CoastalLandformStage.Execute(plan, _config));
         RunStage("Bathymetry", () => BathymetryStage.Execute(plan, _config, seed));
 
@@ -55,7 +59,7 @@ public sealed class IslandPlanner
         RunStage("Biome coherence", () => BiomeCoherenceStage.Execute(plan, _config));
 
         RunStage("Road network", () => RoadNetworkStage.Execute(plan, _config, seed));
-        RunStage("Park layout", () => ParkLayoutStage.Execute(plan, _config, seed));
+        RunStage("Park layout", () => ParkLayoutStage.Execute(plan, _config, seed, _blueprintCatalog));
         RunStage("Paddocks", () => PaddockStage.Execute(plan, _config, seed));
         RunStage("Maintenance yards", () => MaintenanceStage.Execute(plan, _config, seed));
         RunStage("Ruins", () => RuinsStage.Execute(plan, _config, seed));
@@ -67,8 +71,13 @@ public sealed class IslandPlanner
         CaptureSnapshot(plan, IslandGenerationCheckpoint.AfterIslandBalance);
 
         RunStage("Biome coherence (final)", () => BiomeCoherenceStage.Execute(plan, _config, finalPass: true));
+        RunStage("Biome floor (final)", () => BiomeFinalizeStage.EnsureRequiredBiomes(plan, _config, seed));
+        RunStage("Biome coherence (floor repair)", () => BiomeCoherenceStage.Execute(plan, _config, finalPass: true));
+        RunStage("Volcanic biomes", () => BiomeFinalizeStage.StampVolcanicCenters(plan));
+        RunStage("Biome coherence (post-volcanic)", () => BiomeCoherenceStage.Execute(plan, _config));
         RunStage("Bathymetry (final)", () => BathymetryStage.Execute(plan, _config, seed));
         RunStage("Ocean sanitize", () => LandConnectivityStage.SanitizeOceanCells(plan));
+        RunStage("Biome depth", () => BiomeDepthStage.Execute(plan, _config));
         RunStage("Structure finalize", () => StructureFinalizeStage.Execute(plan, seed, _blueprintCatalog));
 
         if (_diagnostics.RunQualityGate)
@@ -94,13 +103,29 @@ public sealed class IslandPlanner
                 width,
                 height,
                 seed,
-                out _,
+                out MaskQualityResult maskQuality,
+                out int cropOffsetX,
+                out int cropOffsetY,
                 _diagnostics.Progress);
+
+            overscanPlan.GenerationDiagnostics = new IslandGenerationDiagnostics
+            {
+                AttemptedShapeScales = maskQuality.AttemptedScales.ToList(),
+                SelectedShapeScale = maskQuality.ShapeScale,
+                CropOffsetX = cropOffsetX,
+                CropOffsetY = cropOffsetY,
+                CroppedLandCoverage = maskQuality.LandCoverageRatio,
+                LandFrameViolations = maskQuality.LandViolations,
+                CoastFrameViolations = maskQuality.CoastViolations,
+                MaxAxisAlignedCoastRun = maskQuality.MaxAxisAlignedCoastRun,
+                OceanFramePassed = valid,
+            };
 
             CaptureSnapshot(overscanPlan, IslandGenerationCheckpoint.AfterMask);
             CaptureSnapshot(overscanPlan, IslandGenerationCheckpoint.AfterCoastlineVariation);
 
-            IslandPlan plan = RunStage("Crop center", () => PlanCropUtility.CropCenter(overscanPlan, width, height));
+            IslandPlan plan = RunStage("Crop center", () =>
+                PlanCropUtility.CropAt(overscanPlan, width, height, cropOffsetX, cropOffsetY));
             plan.OceanFrameValidated = valid;
             plan.GenerationSnapshots = overscanPlan.GenerationSnapshots;
             return plan;
@@ -120,6 +145,42 @@ public sealed class IslandPlanner
 
     private bool ShouldUseOverscan()
         => !_config.UseLegacyIslandMask && _config.OceanFrame.OverscanScale > 1.01f;
+
+    private void ValidateConfiguration()
+    {
+        if (_config.MinBeachCoastDistance <= 0f
+            || _config.MinBeachCoastDistance > _config.MaxBeachCoastDistance
+            || _config.MaxBeachCoastDistance > _config.InlandCoastDistance)
+        {
+            throw new InvalidOperationException(
+                "Beach distances must satisfy 0 < minBeachCoastDistance <= "
+                + "maxBeachCoastDistance <= inlandCoastDistance.");
+        }
+
+        if (_config.MinShallowWaterCoastDistance <= 0f
+            || _config.MinShallowWaterCoastDistance > _config.MaxShallowWaterCoastDistance
+            || _config.MaxShallowWaterCoastDistance > _config.ShelfWidth)
+        {
+            throw new InvalidOperationException(
+                "Shallow-water distances must satisfy 0 < minShallowWaterCoastDistance <= "
+                + "maxShallowWaterCoastDistance <= shelfWidth.");
+        }
+
+        if (_config.VolcanoProtectedCoreRadius < VolcanicConeUtility.LavaCoreRadiusFraction
+            || _config.VolcanoRoadRingRadius <= _config.VolcanoProtectedCoreRadius
+            || _config.LavaFlowCount < 0
+            || _config.LavaFlowMaxLength < 2
+            || _config.LavaFlowWidth < 1
+            || _config.LavaFlowMeanderStrength < 0f
+            || _config.LavaFlowTerminationRadius <= VolcanicConeUtility.LavaCoreRadiusFraction
+            || _config.LavaFlowRoadTraversalPenalty < 0f)
+        {
+            throw new InvalidOperationException(
+                "Volcano and lava settings require a protected core at least as large as the lava core, "
+                + "a larger road-ring radius, and non-negative valid flow dimensions, meander, termination, "
+                + "and traversal-cost values.");
+        }
+    }
 
     private void RunStage(string name, Action action)
     {

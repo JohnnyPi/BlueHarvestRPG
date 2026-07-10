@@ -31,15 +31,14 @@ public class StructureLevelsTests
         Overworld world = new IslandWorldGenerator(TestSaveDefaults.Island, catalog).Generate(5678UL);
         StructurePlacement hotel = world.IslandPlan!.Structures.First(s => s.Type == StructureType.Hotel);
         var blueprint = catalog.ResolveById(hotel.BlueprintId);
-        WorldCoord cell = ResolveStructureCell(hotel, blueprint.StairX, blueprint.StairY);
+        WorldCoord cell = StructurePlacementQueries.OriginCell(hotel);
 
         LocalMap ground = generator.Generate(world, new MapKey(cell, hotel.InstanceId, 0));
         LocalMap upper = generator.Generate(world, new MapKey(cell, hotel.InstanceId, 1));
         LocalMap top = generator.Generate(world, new MapKey(cell, hotel.InstanceId, 2));
 
-        LocalCoord stair = StructurePlacementQueries.ToLocalCoord(cell, hotel, blueprint.StairX, blueprint.StairY);
-        LocalCoord rope = StructurePlacementQueries.ToLocalCoord(
-            ResolveStructureCell(hotel, blueprint.RopeExitX!.Value, blueprint.RopeExitY!.Value),
+        LocalCoord stair = StructurePlacementQueries.InteriorLocal(hotel, blueprint.StairX, blueprint.StairY);
+        LocalCoord rope = StructurePlacementQueries.InteriorLocal(
             hotel,
             blueprint.RopeExitX!.Value,
             blueprint.RopeExitY!.Value);
@@ -62,10 +61,9 @@ public class StructureLevelsTests
 
         StructurePlacement hotel = world.IslandPlan!.Structures.First(s => s.Type == StructureType.Hotel);
         var blueprint = catalog.ResolveById(hotel.BlueprintId);
-        WorldCoord doorCell = ResolveStructureCell(hotel, blueprint.DoorX, blueprint.DoorY);
-        WorldCoord stairCell = ResolveStructureCell(hotel, blueprint.StairX, blueprint.StairY);
-        LocalCoord door = StructurePlacementQueries.ToLocalCoord(doorCell, hotel, blueprint.DoorX, blueprint.DoorY);
-        LocalCoord stair = StructurePlacementQueries.ToLocalCoord(stairCell, hotel, blueprint.StairX, blueprint.StairY);
+        WorldCoord doorCell = StructurePlacementQueries.DoorCell(hotel, blueprint);
+        LocalCoord door = StructurePlacementQueries.SurfaceDoorLocal(hotel, blueprint);
+        LocalCoord stair = StructurePlacementQueries.InteriorLocal(hotel, blueprint.StairX, blueprint.StairY);
 
         session.ViewMode = GameViewMode.LocalMap;
         session.PlayerWorldPosition = doorCell;
@@ -75,6 +73,8 @@ public class StructureLevelsTests
         Assert.True(session.TryUseTileTransition(door.X, door.Y, catalog));
         Assert.True(session.IsInStructureInterior);
         Assert.Equal(0, session.ActiveLocalMap!.FloorIndex);
+        Assert.Equal(StructurePlacementQueries.OriginCell(hotel), session.ActiveLocalMap.WorldPosition);
+        Assert.True(IsReachable(session.ActiveLocalMap, StructurePlacementQueries.InteriorDoorLocal(hotel, blueprint), stair));
 
         session.PlayerLocalPosition = stair;
         Assert.True(session.TryUseTileTransition(stair.X, stair.Y, catalog, TileTransitionKind.StairsUp));
@@ -84,7 +84,7 @@ public class StructureLevelsTests
         Assert.True(session.TryUseTileTransition(stair.X, stair.Y, catalog, TileTransitionKind.StairsUp));
         Assert.Equal(2, session.ActiveLocalMap!.FloorIndex);
 
-        LocalCoord exit = StructurePlacementQueries.ToLocalCoord(doorCell, hotel, blueprint.DoorX, blueprint.DoorY);
+        LocalCoord exit = StructurePlacementQueries.InteriorDoorLocal(hotel, blueprint);
         session.PlayerLocalPosition = exit;
         Assert.False(session.TryUseTileTransition(exit.X, exit.Y, catalog));
         session.PlayerLocalPosition = stair;
@@ -93,10 +93,12 @@ public class StructureLevelsTests
 
         session.PlayerLocalPosition = stair;
         Assert.True(session.TryUseTileTransition(stair.X, stair.Y, catalog, TileTransitionKind.StairsDown));
-        exit = StructurePlacementQueries.ToLocalCoord(doorCell, hotel, blueprint.DoorX, blueprint.DoorY);
+        exit = StructurePlacementQueries.InteriorDoorLocal(hotel, blueprint);
         session.PlayerLocalPosition = exit;
         Assert.True(session.TryUseTileTransition(exit.X, exit.Y, catalog));
         Assert.False(session.IsInStructureInterior);
+        Assert.Equal(doorCell, session.PlayerWorldPosition);
+        Assert.Equal(door, session.PlayerLocalPosition);
     }
 
     [Fact]
@@ -112,9 +114,8 @@ public class StructureLevelsTests
 
         StructurePlacement hotel = world.IslandPlan!.Structures.First(s => s.Type == StructureType.Hotel);
         var blueprint = catalog.ResolveById(hotel.BlueprintId);
-        WorldCoord ropeCell = ResolveStructureCell(hotel, blueprint.RopeExitX!.Value, blueprint.RopeExitY!.Value);
-        LocalCoord ropeTile = StructurePlacementQueries.ToLocalCoord(
-            ropeCell,
+        WorldCoord ropeCell = StructurePlacementQueries.OriginCell(hotel);
+        LocalCoord ropeTile = StructurePlacementQueries.InteriorLocal(
             hotel,
             blueprint.RopeExitX!.Value,
             blueprint.RopeExitY!.Value);
@@ -148,7 +149,7 @@ public class StructureLevelsTests
 
             StructurePlacement hotel = world.IslandPlan!.Structures.First(s => s.Type == StructureType.Hotel);
             var blueprint = catalog.ResolveById(hotel.BlueprintId);
-            WorldCoord cell = ResolveStructureCell(hotel, blueprint.StairX, blueprint.StairY);
+            WorldCoord cell = StructurePlacementQueries.OriginCell(hotel);
 
             session.ViewMode = GameViewMode.LocalMap;
             session.PlayerWorldPosition = cell;
@@ -188,9 +189,30 @@ public class StructureLevelsTests
         }
     }
 
-    private static WorldCoord ResolveStructureCell(StructurePlacement structure, int withinX, int withinY)
+    private static bool IsReachable(LocalMap map, LocalCoord start, LocalCoord target)
     {
-        return CoordinateMath.FromGlobalTile(
-            new GlobalTileCoord(structure.GlobalOriginX + withinX, structure.GlobalOriginY + withinY)).World;
+        var visited = new HashSet<LocalCoord> { start };
+        var queue = new Queue<LocalCoord>();
+        queue.Enqueue(start);
+        while (queue.Count > 0)
+        {
+            LocalCoord current = queue.Dequeue();
+            if (current == target)
+            {
+                return true;
+            }
+
+            foreach ((int dx, int dy) in new[] { (0, -1), (0, 1), (-1, 0), (1, 0) })
+            {
+                var next = new LocalCoord(current.X + dx, current.Y + dy);
+                if (map.Contains(next) && !map.BlocksMovement(next) && visited.Add(next))
+                {
+                    queue.Enqueue(next);
+                }
+            }
+        }
+
+        return false;
     }
+
 }

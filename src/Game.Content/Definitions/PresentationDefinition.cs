@@ -16,6 +16,22 @@ public sealed class TerrainColorsDefinition
     public Dictionary<string, ColorEntry> Terrain { get; set; } = [];
 }
 
+public sealed class ElevationShadeProfileDefinition
+{
+    public bool Enabled { get; set; } = true;
+    public float DarkestElevation { get; set; } = 0.35f;
+    public float FullBrightnessElevation { get; set; } = 0.9f;
+    public float MaxDarkening { get; set; } = 0.24f;
+}
+
+public sealed class ElevationShadingDefinition
+{
+    public bool Enabled { get; set; } = true;
+    public ElevationShadeProfileDefinition DefaultProfile { get; set; } = new();
+    public Dictionary<string, ElevationShadeProfileDefinition> Biomes { get; set; } = [];
+    public List<string> ExcludedBiomes { get; set; } = ["Ocean", "ShallowWater", "Reef"];
+}
+
 public sealed class TilesDefinition
 {
     public Dictionary<string, string> Terrain { get; set; } = [];

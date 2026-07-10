@@ -25,7 +25,7 @@ public static class GameBootstrap
     {
         var saveManager = new SaveManager(saveDirectory);
         var blueprintCatalog = bundle.CreateBlueprintCatalog();
-        var localMapGenerator = new LocalMapGenerator(blueprintCatalog);
+        var localMapGenerator = new LocalMapGenerator(blueprintCatalog, bundle.BiomeRules);
         uint biomeRulesHash = BiomeRulesHash.Compute(bundle.BiomeRules);
 
         if (saveManager.TryLoad(

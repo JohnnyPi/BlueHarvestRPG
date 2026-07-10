@@ -10,6 +10,8 @@ public enum TerrainId : ushort
     Mud,
     Rock,
     Tree,
+    Undergrowth,
+    DenseCanopy,
     Road,
     Concrete,
     Wall,
@@ -28,5 +30,6 @@ public enum TerrainId : ushort
     StairsUp,
     StairsDown,
     StructureExit,
-    ShallowFord
+    ShallowFord,
+    Lava
 }

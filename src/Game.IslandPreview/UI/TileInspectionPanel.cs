@@ -62,6 +62,13 @@ public sealed class TileInspectionPanel
         int index = _inspectedY * _inspectedPlan.Width + _inspectedX;
         float coastDistance = _inspectedPlan.CoastDistance.Length > index ? _inspectedPlan.CoastDistance[index] : 0f;
         float concavity = _inspectedPlan.Concavity.Length > index ? _inspectedPlan.Concavity[index] : 0f;
+        float coastalVariation = _inspectedPlan.CoastalWidthVariation.Length > index
+            ? _inspectedPlan.CoastalWidthVariation[index]
+            : 0f;
+        float beachWidth = _inspectedPlan.BeachWidth.Length > index ? _inspectedPlan.BeachWidth[index] : 0f;
+        float shallowWidth = _inspectedPlan.ShallowWaterWidth.Length > index
+            ? _inspectedPlan.ShallowWaterWidth[index]
+            : 0f;
         float mask = _inspectedPlan.IslandMask.Length > index ? _inspectedPlan.IslandMask[index] : 0f;
         int regionId = _inspectedPlan.GetRegionId(_inspectedX, _inspectedY);
 
@@ -76,6 +83,8 @@ public sealed class TileInspectionPanel
             $"Volc {cell.VolcanicActivity:0.###}",
             $"CoastDist {coastDistance:0.###}",
             $"Concavity {concavity:0.###}",
+            $"CoastVar {coastalVariation:0.###}",
+            $"Beach/Shallow {beachWidth:0.###}/{shallowWidth:0.###}",
             $"Region {regionId}",
             $"Role {cell.Role}",
             $"Boundary {cell.BoundaryType}",

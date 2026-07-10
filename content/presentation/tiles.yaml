@@ -2,12 +2,15 @@
   DeepWater: deepocean.png
   ShallowWater: shallowwater.png
   ShallowFord: shallowwater.png
+  Lava: cave magma.png
   Sand: sand.png
   Dirt: dryland.png
   Grass: grass.png
   Mud: mud.png
   Rock: stone tile.png
   Tree: junglegrass.png
+  Undergrowth: junglegrass.png
+  DenseCanopy: junglegrass.png
   Road: path.png
   Concrete: granite floor.png
   Wall: cave wall.png

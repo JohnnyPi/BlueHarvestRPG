@@ -33,6 +33,25 @@ public static class SeedUtility
         }
     }
 
+    /// <summary>
+    /// Stable FNV-1a string hash. string.GetHashCode is randomized per process, so it must
+    /// never feed seeds; this keeps generation reproducible across runs and saves.
+    /// </summary>
+    public static ulong HashString(string value)
+    {
+        unchecked
+        {
+            ulong hash = 14695981039346656037UL;
+            foreach (char c in value)
+            {
+                hash ^= c;
+                hash *= 1099511628211UL;
+            }
+
+            return Mix(hash);
+        }
+    }
+
     private static ulong RotateLeft(ulong value, int amount)
     {
         return (value << amount) | (value >> (64 - amount));

@@ -1,4 +1,3 @@
-using Game.Simulation.World.Island;
 using Game.Content.Definitions;
 using Game.Simulation.Coordinates;
 using Game.Simulation.LocalMaps;
@@ -128,13 +127,14 @@ internal static class StructureStampHelper
             return;
         }
 
-        if (surfaceView && withinX == blueprint.DoorX && withinY == blueprint.DoorY)
+        (int doorX, int doorY) = StructurePlacementQueries.DoorWithin(structure, blueprint);
+        if (surfaceView && withinX == doorX && withinY == doorY)
         {
             map.SetTerrain(localX, localY, TerrainId.Door, TileFlags.None);
             return;
         }
 
-        if (!surfaceView && floorIndex == 0 && withinX == blueprint.DoorX && withinY == blueprint.DoorY)
+        if (!surfaceView && floorIndex == 0 && withinX == doorX && withinY == doorY)
         {
             map.SetTerrain(localX, localY, TerrainId.StructureExit, TileFlags.None);
             return;
@@ -174,10 +174,11 @@ internal static class StructureStampHelper
             return;
         }
 
+        (int doorX, int doorY) = StructurePlacementQueries.DoorWithin(structure, blueprint);
         if (structure.Type != StructureType.Helipad &&
             surfaceView &&
-            withinX == blueprint.DoorX &&
-            withinY == blueprint.DoorY)
+            withinX == doorX &&
+            withinY == doorY)
         {
             map.SetTerrain(localX, localY, TerrainId.Door, TileFlags.None);
             return;
@@ -185,8 +186,8 @@ internal static class StructureStampHelper
 
         if (!surfaceView &&
             structure.Type != StructureType.Helipad &&
-            withinX == blueprint.DoorX &&
-            withinY == blueprint.DoorY)
+            withinX == doorX &&
+            withinY == doorY)
         {
             map.SetTerrain(localX, localY, TerrainId.StructureExit, TileFlags.None);
             return;

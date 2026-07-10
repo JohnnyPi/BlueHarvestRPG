@@ -6,6 +6,7 @@ namespace Game.Simulation.World.Island;
 public enum FacilityRoadNodeKind
 {
     Hub,
+    Ring,
     Junction,
     CoastConnector,
     FacilitySpur
@@ -45,12 +46,13 @@ public sealed class FacilityRoadGraph
         foreach ((int globalX, int globalY) in tiles)
         {
             GlobalPathTiles.Add((globalX, globalY));
-            PathCells.Add((globalX / LocalMap.Width, globalY / LocalMap.Height));
         }
     }
 
     public void AddSpur(WorldCoord fromCell, WorldCoord toCell)
     {
+        PathCells.Add((fromCell.X, fromCell.Y));
+        PathCells.Add((toCell.X, toCell.Y));
         AddGlobalPath(BuildGlobalSpur(fromCell, toCell));
     }
 

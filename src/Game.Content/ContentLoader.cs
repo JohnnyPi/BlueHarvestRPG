@@ -27,6 +27,7 @@ public sealed class ContentLoader
         var controls = Load<ControlsDefinition>("controls.yaml");
         var biomeColors = Load<BiomeColorsDefinition>(Path.Combine("presentation", "biomes.yaml"));
         var terrainColors = Load<TerrainColorsDefinition>(Path.Combine("presentation", "terrain.yaml"));
+        var elevationShading = Load<ElevationShadingDefinition>(Path.Combine("presentation", "elevation_shading.yaml"));
         var tiles = Load<TilesDefinition>(Path.Combine("presentation", "tiles.yaml"));
         var camera = Load<CameraDefinition>(Path.Combine("presentation", "camera.yaml"));
         var player = Load<PlayerDefinition>(Path.Combine("presentation", "player.yaml"));
@@ -45,6 +46,7 @@ public sealed class ContentLoader
             Controls = controls,
             BiomeColors = biomeColors,
             TerrainColors = terrainColors,
+            ElevationShading = elevationShading,
             Tiles = tiles,
             Camera = camera,
             Player = player,
@@ -128,6 +130,66 @@ public sealed class ContentLoader
         ValidateMenu(bundle.ContextMenus.Overworld, "overworld");
         ValidateMenu(bundle.ContextMenus.LocalMap, "localMap");
         ValidateCreatures(bundle.Creatures);
+        ValidateBiomeRules(bundle.BiomeRules);
+        ValidateElevationShading(bundle.ElevationShading);
+    }
+
+    private static void ValidateBiomeRules(BiomeRulesDefinition rules)
+    {
+        if (rules.FoothillsMinElevation > rules.HillsMinElevation
+            || rules.HillsMinElevation > rules.SmallMountainMinElevation
+            || rules.SmallMountainMinElevation > rules.MountainsMinElevation)
+        {
+            throw new ContentLoadException(
+                "Highland elevation thresholds must be ordered: "
+                + "foothills <= hills <= small mountains <= mountains.");
+        }
+    }
+
+    private static void ValidateElevationShading(ElevationShadingDefinition definition)
+    {
+        ValidateElevationShadeProfile(definition.DefaultProfile, "defaultProfile");
+
+        foreach ((string biomeName, ElevationShadeProfileDefinition profile) in definition.Biomes)
+        {
+            if (!Enum.TryParse<BiomeId>(biomeName, ignoreCase: true, out _))
+            {
+                throw new ContentLoadException(
+                    $"Elevation shading references unknown biome '{biomeName}'.");
+            }
+
+            ValidateElevationShadeProfile(profile, $"biomes.{biomeName}");
+        }
+
+        foreach (string biomeName in definition.ExcludedBiomes)
+        {
+            if (!Enum.TryParse<BiomeId>(biomeName, ignoreCase: true, out _))
+            {
+                throw new ContentLoadException(
+                    $"Elevation shading excludes unknown biome '{biomeName}'.");
+            }
+        }
+    }
+
+    private static void ValidateElevationShadeProfile(
+        ElevationShadeProfileDefinition profile,
+        string path)
+    {
+        if (!float.IsFinite(profile.DarkestElevation) ||
+            !float.IsFinite(profile.FullBrightnessElevation) ||
+            profile.DarkestElevation >= profile.FullBrightnessElevation)
+        {
+            throw new ContentLoadException(
+                $"Elevation shading '{path}' requires darkestElevation < fullBrightnessElevation.");
+        }
+
+        if (!float.IsFinite(profile.MaxDarkening) ||
+            profile.MaxDarkening < 0f ||
+            profile.MaxDarkening > 1f)
+        {
+            throw new ContentLoadException(
+                $"Elevation shading '{path}' maxDarkening must be between 0 and 1.");
+        }
     }
 
     private static void ValidateCreatures(CreaturesDefinition creatures)

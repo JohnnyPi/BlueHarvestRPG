@@ -8,6 +8,9 @@
   ShallowFord:
     name: Shallow Ford
     color: "#4682B4"
+  Lava:
+    name: Lava Flow
+    color: "#E64A19"
   Sand:
     name: Sand
     color: "#F4A460"
@@ -26,6 +29,12 @@
   Tree:
     name: Tree
     color: "#006400"
+  Undergrowth:
+    name: Undergrowth
+    color: "#2E6B2E"
+  DenseCanopy:
+    name: Dense Canopy
+    color: "#004D00"
   Road:
     name: Road
     color: "#A0522D"

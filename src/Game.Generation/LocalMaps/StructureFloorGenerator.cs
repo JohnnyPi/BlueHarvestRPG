@@ -1,17 +1,18 @@
 using Game.Simulation.World.Island;
 using Game.Content.Definitions;
 using Game.Generation.Passes;
+using Game.Generation.Validation;
 using Game.Simulation.Coordinates;
 using Game.Simulation.LocalMaps;
 using Game.Simulation.Seeds;
 using Game.Simulation.World;
-using Game.Simulation.World.Island;
 
 namespace Game.Generation.LocalMaps;
 
 public sealed class StructureFloorGenerator
 {
     private readonly StructureBlueprintCatalog _blueprintCatalog;
+    private readonly NavigabilityValidator _navigabilityValidator = new();
 
     public StructureFloorGenerator(StructureBlueprintCatalog blueprintCatalog)
     {
@@ -36,10 +37,18 @@ public sealed class StructureFloorGenerator
         StructureStampHelper.StampBuilding(
             map,
             key.WorldPosition,
-            structure,
+            StructurePlacementQueries.InteriorPlacement(structure),
             blueprint,
             key.FloorIndex,
             surfaceView: false);
+
+        LocalCoord door = StructurePlacementQueries.InteriorDoorLocal(structure, blueprint);
+        LocalCoord stairs = StructurePlacementQueries.InteriorLocal(structure, blueprint.StairX, blueprint.StairY);
+        if (map.Contains(stairs) &&
+            map.Terrain[map.GetIndex(stairs.X, stairs.Y)] is TerrainId.StairsUp or TerrainId.StairsDown)
+        {
+            _navigabilityValidator.EnsureConnected(map, door, stairs, allowInteriorWallRepair: true);
+        }
 
         return map;
     }

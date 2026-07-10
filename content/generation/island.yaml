@@ -8,48 +8,48 @@ islandShape:
   landThreshold: 0.02
   additiveBlobs:
     - name: north_mass
-      center: [-0.22, 0.28]
-      radius: [0.78, 0.55]
+      center: [-0.12, 0.30]
+      radius: [0.833, 0.589]
       rotationDegrees: -8
       strength: 1.0
       smoothness: 0.20
     - name: east_lobe
-      center: [0.36, 0.05]
-      radius: [0.45, 0.42]
+      center: [0.32, 0.07]
+      radius: [0.487, 0.447]
       rotationDegrees: 12
       strength: 0.85
       smoothness: 0.20
     - name: south_taper
-      center: [-0.12, -0.50]
-      radius: [0.32, 0.62]
+      center: [-0.08, -0.38]
+      radius: [0.345, 0.650]
       rotationDegrees: -5
       strength: 0.75
       smoothness: 0.18
   subtractiveBays:
     - name: southeast_bay
-      center: [0.58, -0.22]
+      center: [0.68, -0.10]
       radius: [0.34, 0.24]
       strength: 0.75
       smoothness: 0.12
     - name: northeast_lagoon
-      center: [0.42, 0.38]
+      center: [0.52, 0.50]
       radius: [0.28, 0.17]
       strength: 0.55
       smoothness: 0.10
     - name: west_cove
-      center: [-0.74, -0.10]
+      center: [-0.64, 0.02]
       radius: [0.18, 0.25]
       strength: 0.35
       smoothness: 0.10
   domainWarp:
     lobingFrequency: 0.8
-    lobingAmplitude: 0.22
+    lobingAmplitude: 0.195
     frequency: 1.6
-    amplitude: 0.12
+    amplitude: 0.106
     octaves: 3
-    largeStrength: 0.14
-    mediumStrength: 0.10
-    smallStrength: 0.04
+    largeStrength: 0.121
+    mediumStrength: 0.087
+    smallStrength: 0.0345
   coastlineDetail:
     frequency: 5.0
     amplitude: 0.025
@@ -61,24 +61,24 @@ islandShape:
 ridges:
   - name: main_ridge
     points:
-      - [-0.35, 0.30]
-      - [-0.10, 0.15]
-      - [0.15, -0.05]
-      - [0.35, -0.25]
+      - [-0.25, 0.42]
+      - [0.00, 0.27]
+      - [0.25, 0.07]
+      - [0.45, -0.13]
     strength: 0.28
     width: 0.14
   - name: east_ridge
     points:
-      - [0.05, 0.10]
-      - [0.22, 0.05]
-      - [0.38, 0.02]
+      - [0.15, 0.22]
+      - [0.32, 0.17]
+      - [0.48, 0.14]
     strength: 0.18
     width: 0.10
   - name: south_ridge
     points:
-      - [-0.05, 0.05]
-      - [-0.10, -0.20]
-      - [-0.12, -0.45]
+      - [0.05, 0.17]
+      - [0.00, -0.08]
+      - [-0.02, -0.33]
     strength: 0.16
     width: 0.10
 
@@ -86,7 +86,12 @@ shelfWidth: 0.10
 shelfDepth: 0.08
 deepOceanDepth: 0.35
 deepOceanWidth: 0.45
-beachCoastDistance: 0.04
+minBeachCoastDistance: 0.025
+maxBeachCoastDistance: 0.06
+minShallowWaterCoastDistance: 0.018
+maxShallowWaterCoastDistance: 0.04
+coastalWidthVariationFrequency: 3.5
+coastalWidthSmoothingPasses: 3
 inlandCoastDistance: 0.08
 landCoastThreshold: 0.01
 coastalRampStrength: 0.18
@@ -146,9 +151,18 @@ continentalCrustBias: 0.58
 subductionUplift: 0.14
 collisionUplift: 0.28
 divergentRidgeBoost: 0.06
-volcanicConeCount: 2
+volcanicConeCount: 1
 volcanicConeRadius: 0.038
 volcanicConeHeight: 0.55
+volcanoProtectedCoreRadius: 1.05
+volcanoRoadRingRadius: 1.35
+volcanoRoadRingNodes: 8
+lavaFlowCount: 3
+lavaFlowMaxLength: 32
+lavaFlowWidth: 2
+lavaFlowMeanderStrength: 0.12
+lavaFlowTerminationRadius: 1.25
+lavaFlowRoadTraversalPenalty: 40
 mantlePlumeCount: 0
 mantlePlumeRadius: 0.04
 mantlePlumeIntensity: 0.22
@@ -165,9 +179,9 @@ minElevationStdDev: 0.08
 balancePassMaxIterations: 4
 
 oceanFrame:
-  overscanScale: 1.25
-  minLandDistanceFromEdge: 40
-  minCoastDistanceFromEdge: 24
+  overscanScale: 1.30
+  minLandDistanceFromEdge: 32
+  minCoastDistanceFromEdge: 20
   maxRegenerationAttempts: 8
   maxAxisAlignedCoastRun: 20
   edgeLinearityBand: 24

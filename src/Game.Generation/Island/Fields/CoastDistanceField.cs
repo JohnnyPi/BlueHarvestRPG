@@ -22,11 +22,37 @@ public static class CoastDistanceField
             land[i] = plan.IslandMask[i] > landThreshold;
         }
 
+        Compute(plan, land, maxDistanceNorm);
+    }
+
+    public static void ComputeFromExteriorOcean(
+        IslandPlan plan,
+        IReadOnlyList<bool> exteriorOcean,
+        float maxDistanceNorm)
+    {
+        int cellCount = plan.Width * plan.Height;
+        if (exteriorOcean.Count != cellCount)
+        {
+            throw new ArgumentException("Exterior-ocean field must match the plan dimensions.", nameof(exteriorOcean));
+        }
+
+        var landSide = new bool[cellCount];
+        for (int i = 0; i < cellCount; i++)
+        {
+            landSide[i] = !exteriorOcean[i];
+        }
+
+        Compute(plan, landSide, maxDistanceNorm);
+    }
+
+    private static void Compute(IslandPlan plan, bool[] land, float maxDistanceNorm)
+    {
+        int cellCount = plan.Width * plan.Height;
+        plan.CoastDistance = new float[cellCount];
+        plan.Concavity = new float[cellCount];
         float maxDistCells = MathF.Max(1f, maxDistanceNorm * Math.Min(plan.Width, plan.Height));
         var dist = new float[cellCount];
         Array.Fill(dist, float.MaxValue);
-
-        var queue = new Queue<int>();
 
         for (int y = 0; y < plan.Height; y++)
         {
@@ -39,36 +65,73 @@ public static class CoastDistanceField
                 }
 
                 dist[index] = 0f;
-                queue.Enqueue(index);
             }
         }
 
-        while (queue.Count > 0)
+        void Relax(int index, int neighbor, float step)
         {
-            int current = queue.Dequeue();
-            int cx = current % plan.Width;
-            int cy = current / plan.Width;
-            float currentDist = dist[current];
-
-            foreach ((int dx, int dy) in Neighbors)
+            if (dist[neighbor] == float.MaxValue)
             {
-                int nx = cx + dx;
-                int ny = cy + dy;
-                if (nx < 0 || ny < 0 || nx >= plan.Width || ny >= plan.Height)
+                return;
+            }
+
+            float candidate = dist[neighbor] + step;
+            if (candidate < dist[index])
+            {
+                dist[index] = MathF.Min(candidate, maxDistCells);
+            }
+        }
+
+        const float diagonal = 1.4142135f;
+        for (int y = 0; y < plan.Height; y++)
+        {
+            for (int x = 0; x < plan.Width; x++)
+            {
+                int index = y * plan.Width + x;
+                if (x > 0)
                 {
-                    continue;
+                    Relax(index, index - 1, 1f);
                 }
 
-                int neighbor = ny * plan.Width + nx;
-                float step = dx != 0 && dy != 0 ? 1.4142135f : 1f;
-                float candidate = currentDist + step;
-                if (candidate >= dist[neighbor])
+                if (y > 0)
                 {
-                    continue;
+                    Relax(index, index - plan.Width, 1f);
+                    if (x > 0)
+                    {
+                        Relax(index, index - plan.Width - 1, diagonal);
+                    }
+
+                    if (x + 1 < plan.Width)
+                    {
+                        Relax(index, index - plan.Width + 1, diagonal);
+                    }
+                }
+            }
+        }
+
+        for (int y = plan.Height - 1; y >= 0; y--)
+        {
+            for (int x = plan.Width - 1; x >= 0; x--)
+            {
+                int index = y * plan.Width + x;
+                if (x + 1 < plan.Width)
+                {
+                    Relax(index, index + 1, 1f);
                 }
 
-                dist[neighbor] = candidate;
-                queue.Enqueue(neighbor);
+                if (y + 1 < plan.Height)
+                {
+                    Relax(index, index + plan.Width, 1f);
+                    if (x > 0)
+                    {
+                        Relax(index, index + plan.Width - 1, diagonal);
+                    }
+
+                    if (x + 1 < plan.Width)
+                    {
+                        Relax(index, index + plan.Width + 1, diagonal);
+                    }
+                }
             }
         }
 
@@ -122,12 +185,6 @@ public static class CoastDistanceField
             for (int x = 1; x < width - 1; x++)
             {
                 int index = y * width + x;
-                if (land[index])
-                {
-                    plan.Concavity[index] = 0f;
-                    continue;
-                }
-
                 float laplacian = 0f;
                 float center = plan.CoastDistance[index];
                 laplacian += plan.CoastDistance[index - 1] - center;
@@ -135,7 +192,7 @@ public static class CoastDistanceField
                 laplacian += plan.CoastDistance[index - width] - center;
                 laplacian += plan.CoastDistance[index + width] - center;
 
-                float concavity = Math.Clamp(-laplacian * maxDistCells * 0.25f, 0f, 1f);
+                float concavity = Math.Clamp(-laplacian * maxDistCells * 0.25f, -1f, 1f);
                 plan.Concavity[index] = concavity;
             }
         }

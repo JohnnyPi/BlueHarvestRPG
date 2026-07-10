@@ -31,6 +31,10 @@ public class ContentLoaderTests
             Assert.True(bundle.Tiles.Biomes.ContainsKey(biome.ToString()));
         }
 
+        Assert.True(bundle.ElevationShading.Enabled);
+        Assert.Contains(nameof(BiomeId.Ocean), bundle.ElevationShading.ExcludedBiomes);
+        Assert.True(bundle.ElevationShading.Biomes.ContainsKey(nameof(BiomeId.Beach)));
+
         Assert.NotEmpty(bundle.ContextMenus.Overworld);
         Assert.NotEmpty(bundle.ContextMenus.LocalMap);
     }
@@ -61,6 +65,33 @@ public class ContentLoaderTests
         string menuPath = Path.Combine(dir, "ui", "context_menus.yaml");
         File.WriteAllText(menuPath,
             "overworld:\n  - id: bad\n    label: Bad\n    intent: NotARealIntent\nlocalMap: []\n");
+
+        try
+        {
+            var loader = new ContentLoader(dir);
+            Assert.Throws<ContentLoadException>(() => loader.LoadAll());
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void LoadAll_ThrowsOnInvalidElevationShadingRange()
+    {
+        string dir = Path.Combine(Path.GetTempPath(), "RougeContentTests", Guid.NewGuid().ToString("N"));
+        CopyValidContent(dir);
+
+        string shadingPath = Path.Combine(dir, "presentation", "elevation_shading.yaml");
+        File.WriteAllText(shadingPath,
+            """
+            enabled: true
+            defaultProfile:
+              darkestElevation: 0.8
+              fullBrightnessElevation: 0.4
+              maxDarkening: 0.2
+            """);
 
         try
         {

@@ -212,20 +212,23 @@ public static class OverworldLandmarkCatalog
         StructurePlacement? structure = FindStructureAt(plan, worldCell);
         if (structure is not null)
         {
-            var blueprint = StructureBlueprintCatalogDefaults.Create().ResolveById(structure.BlueprintId);
-            LocalCoord door = StructurePlacementQueries.ToLocalCoord(
-                worldCell,
-                structure,
-                blueprint.DoorX,
-                blueprint.DoorY);
+            var catalog = StructureBlueprintCatalogDefaults.Create();
+            var blueprint = string.IsNullOrEmpty(structure.BlueprintId)
+                ? catalog.Resolve(structure.Type)
+                : catalog.ResolveById(structure.BlueprintId);
 
-            if (structure.Type == StructureType.Helipad)
+            (int doorGlobalX, int doorGlobalY) = StructurePlacementQueries.DoorGlobal(structure, blueprint);
+            (WorldCoord doorCell, LocalCoord door) = CoordinateMath.FromGlobalTile(
+                new GlobalTileCoord(doorGlobalX, doorGlobalY));
+
+            if (doorCell != worldCell)
             {
-                door = StructurePlacementQueries.ToLocalCoord(
-                    worldCell,
-                    structure,
-                    blueprint.DoorX,
-                    blueprint.DoorY);
+                // Multi-cell footprint entered away from the door cell: use the nearest
+                // walkable tile to the cell center as the entry point.
+                entryPoint = WalkabilityHelper.FindNearestWalkable(
+                    map,
+                    new LocalCoord(LocalMap.Width / 2, LocalMap.Height / 2));
+                return true;
             }
 
             if (map.Contains(door))

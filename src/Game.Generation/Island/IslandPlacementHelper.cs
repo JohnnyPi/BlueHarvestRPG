@@ -1,10 +1,11 @@
+using Game.Generation.Island.Stages;
 using Game.Generation.Noise;
 using Game.Simulation.Coordinates;
 using Game.Simulation.World.Island;
 
 namespace Game.Generation.Island;
 
-internal static class IslandPlacementHelper
+public static class IslandPlacementHelper
 {
     public static (int GlobalX, int GlobalY) CellCenterGlobal(WorldCoord cell)
     {
@@ -18,6 +19,101 @@ internal static class IslandPlacementHelper
         return (
             cell.X * Game.Simulation.LocalMaps.LocalMap.Width + (Game.Simulation.LocalMaps.LocalMap.Width - width) / 2,
             cell.Y * Game.Simulation.LocalMaps.LocalMap.Height + (Game.Simulation.LocalMaps.LocalMap.Height - height) / 2);
+    }
+
+    public static bool CanPlaceFootprint(IslandPlan plan, int globalOriginX, int globalOriginY, int width, int height)
+    {
+        if (globalOriginX < 0 || globalOriginY < 0 || width <= 0 || height <= 0)
+        {
+            return false;
+        }
+
+        int globalLimitX = plan.Width * Game.Simulation.LocalMaps.LocalMap.Width;
+        int globalLimitY = plan.Height * Game.Simulation.LocalMaps.LocalMap.Height;
+        if (globalOriginX > globalLimitX - width || globalOriginY > globalLimitY - height)
+        {
+            return false;
+        }
+
+        int minCellX = globalOriginX / Game.Simulation.LocalMaps.LocalMap.Width;
+        int minCellY = globalOriginY / Game.Simulation.LocalMaps.LocalMap.Height;
+        int maxCellX = (globalOriginX + width - 1) / Game.Simulation.LocalMaps.LocalMap.Width;
+        int maxCellY = (globalOriginY + height - 1) / Game.Simulation.LocalMaps.LocalMap.Height;
+
+        for (int cellY = minCellY; cellY <= maxCellY; cellY++)
+        {
+            for (int cellX = minCellX; cellX <= maxCellX; cellX++)
+            {
+                if (!plan.Contains(cellX, cellY) || !plan.IsLand(cellX, cellY))
+                {
+                    return false;
+                }
+
+                ref IslandCellData cell = ref plan.GetCell(cellX, cellY);
+                if (cell.IsCoast
+                    || plan.VolcanoExclusion.IsProtected(cellX, cellY)
+                    || plan.LavaFlowGraph.PathCells.Contains((cellX, cellY)))
+                {
+                    return false;
+                }
+
+                IslandCellRole blockingRole = cell.Role & ~IslandCellRole.Road;
+                if (BiomeBalanceHelper.HasEnterableRole(blockingRole))
+                {
+                    return false;
+                }
+            }
+        }
+
+        foreach (StructurePlacement existing in plan.Structures)
+        {
+            if (FootprintsOverlap(
+                    globalOriginX,
+                    globalOriginY,
+                    width,
+                    height,
+                    existing.GlobalOriginX,
+                    existing.GlobalOriginY,
+                    existing.Width,
+                    existing.Height))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    public static void MarkFootprintRoles(IslandPlan plan, int globalOriginX, int globalOriginY, int width, int height, IslandCellRole role)
+    {
+        int minCellX = globalOriginX / Game.Simulation.LocalMaps.LocalMap.Width;
+        int minCellY = globalOriginY / Game.Simulation.LocalMaps.LocalMap.Height;
+        int maxCellX = (globalOriginX + width - 1) / Game.Simulation.LocalMaps.LocalMap.Width;
+        int maxCellY = (globalOriginY + height - 1) / Game.Simulation.LocalMaps.LocalMap.Height;
+
+        for (int cellY = minCellY; cellY <= maxCellY; cellY++)
+        {
+            for (int cellX = minCellX; cellX <= maxCellX; cellX++)
+            {
+                MarkRole(plan, new WorldCoord(cellX, cellY), role);
+            }
+        }
+    }
+
+    private static bool FootprintsOverlap(
+        int ax,
+        int ay,
+        int aw,
+        int ah,
+        int bx,
+        int by,
+        int bw,
+        int bh)
+    {
+        return ax < bx + bw &&
+               ax + aw > bx &&
+               ay < by + bh &&
+               ay + ah > by;
     }
 
     public static List<WorldCoord> FindCoastalCells(IslandPlan plan)

@@ -26,11 +26,12 @@ public sealed class StructureDoorRestorePass : IGenerationPass
             }
 
             var blueprint = context.BlueprintCatalog.ResolveById(structure.BlueprintId);
+            (int doorX, int doorY) = StructurePlacementQueries.DoorWithin(structure, blueprint);
             LocalCoord door = StructurePlacementQueries.ToLocalCoord(
                 context.WorldCoordinate,
                 structure,
-                blueprint.DoorX,
-                blueprint.DoorY);
+                doorX,
+                doorY);
 
             if (!map.Contains(door))
             {

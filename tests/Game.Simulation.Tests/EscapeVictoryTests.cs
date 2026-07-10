@@ -85,7 +85,14 @@ public class EscapeVictoryTests
             IsActive = true
         };
 
-        combat.TryAttack(host.Session, raptor, host.Session.PlayerEntity);
+        // Individual swings can miss (rolls are seeded by position and time), so attack
+        // across several turns until one lands.
+        for (int attempt = 0; attempt < 20 && host.Session.Outcome != RunOutcome.Dead; attempt++)
+        {
+            host.Session.PlayerEntity.Health = CombatResolver.DefaultAttackDamage;
+            combat.TryAttack(host.Session, raptor, host.Session.PlayerEntity);
+            host.Session.WorldTime++;
+        }
 
         Assert.Equal(RunOutcome.Dead, host.Session.Outcome);
         Assert.Equal("Lost on the Island", host.Session.RunEndTitle);
@@ -182,7 +189,16 @@ public class EscapeVictoryTests
         };
 
         var combat = new CombatResolver();
-        combat.TryAttack(host.Session, host.Session.PlayerEntity, raptor);
+
+        // Individual swings can miss (rolls are seeded by position and time), so attack
+        // across several turns until one lands.
+        for (int attempt = 0; attempt < 20 && !host.Session.FinaleThreats.Contains(FinaleThreatId.RaptorPack); attempt++)
+        {
+            raptor.Health = raptor.MaxHealth;
+            raptor.IsActive = true;
+            combat.TryAttack(host.Session, host.Session.PlayerEntity, raptor);
+            host.Session.WorldTime++;
+        }
 
         Assert.True(host.Session.FinaleThreats.Contains(FinaleThreatId.RaptorPack));
     }

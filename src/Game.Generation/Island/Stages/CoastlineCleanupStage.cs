@@ -7,7 +7,10 @@ public static class CoastlineCleanupStage
 {
     private static readonly (int Dx, int Dy)[] Neighbors = [(1, 0), (-1, 0), (0, 1), (0, -1)];
 
-    public static void Execute(IslandPlan plan, IslandDefinition config)
+    public static void Execute(
+        IslandPlan plan,
+        IslandDefinition config,
+        bool recomputeCoastDistance = true)
     {
         if (config.UseLegacyIslandMask)
         {
@@ -18,7 +21,10 @@ public static class CoastlineCleanupStage
         int minComponentCells = Math.Max(1, config.MinLandComponentCells / 3);
         SmoothSingleCellNoise(plan, landThreshold);
         RemoveTinyMaskIslands(plan, landThreshold, minComponentCells);
-        CoastDistanceStage.Execute(plan, config);
+        if (recomputeCoastDistance)
+        {
+            CoastDistanceStage.Execute(plan, config);
+        }
     }
 
     private static void SmoothSingleCellNoise(IslandPlan plan, float landThreshold)

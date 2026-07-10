@@ -1,0 +1,42 @@
+﻿enabled: true
+defaultProfile:
+  darkestElevation: 0.35
+  fullBrightnessElevation: 0.90
+  maxDarkening: 0.18
+biomes:
+  Beach:
+    darkestElevation: 0.35
+    fullBrightnessElevation: 0.39
+    maxDarkening: 0.10
+  Plains:
+    darkestElevation: 0.39
+    fullBrightnessElevation: 0.68
+    maxDarkening: 0.18
+  Forest:
+    darkestElevation: 0.39
+    fullBrightnessElevation: 0.68
+    maxDarkening: 0.18
+  Swamp:
+    darkestElevation: 0.39
+    fullBrightnessElevation: 0.68
+    maxDarkening: 0.14
+  Jungle:
+    darkestElevation: 0.39
+    fullBrightnessElevation: 0.68
+    maxDarkening: 0.18
+  Hills:
+    darkestElevation: 0.62
+    fullBrightnessElevation: 0.82
+    maxDarkening: 0.16
+  Mountains:
+    darkestElevation: 0.75
+    fullBrightnessElevation: 1.10
+    maxDarkening: 0.14
+  Volcanic:
+    darkestElevation: 0.82
+    fullBrightnessElevation: 1.20
+    maxDarkening: 0.14
+excludedBiomes:
+  - Ocean
+  - ShallowWater
+  - Reef

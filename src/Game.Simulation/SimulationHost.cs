@@ -26,6 +26,8 @@ public sealed class SimulationHost
     private byte[]? _riverEdgeBuffer;
     private byte[]? _roadEdgeBuffer;
     private bool[]? _roadCellBuffer;
+    private bool[]? _lavaCellBuffer;
+    private float[]? _elevationBuffer;
     private EntityRenderData[]? _entityBuffer;
     private bool[]? _visibleBuffer;
     private bool[]? _exploredBuffer;
@@ -579,6 +581,8 @@ public sealed class SimulationHost
             RiverEdgeMask: _riverEdgeBuffer,
             RoadEdgeMask: _roadEdgeBuffer,
             RoadCells: _roadCellBuffer,
+            LavaCells: _lavaCellBuffer,
+            ElevationData: _elevationBuffer,
             DebugFullBrightness: debugFullBrightness,
             RunOutcome: Session.Outcome,
             EscapeEnding: Session.EscapeEnding,
@@ -602,9 +606,16 @@ public sealed class SimulationHost
         }
 
         ReadOnlySpan<WorldCell> cells = Overworld.Cells;
+        _elevationBuffer ??= new float[size];
+        if (_elevationBuffer.Length != size)
+        {
+            _elevationBuffer = new float[size];
+        }
+
         for (int i = 0; i < size; i++)
         {
             _cellBuffer[i] = (ushort)cells[i].Biome;
+            _elevationBuffer[i] = cells[i].Elevation;
         }
 
         if (Overworld.IslandPlan is not null)
@@ -632,6 +643,13 @@ public sealed class SimulationHost
             }
 
             Array.Clear(_roadCellBuffer, 0, size);
+            _lavaCellBuffer ??= new bool[size];
+            if (_lavaCellBuffer.Length != size)
+            {
+                _lavaCellBuffer = new bool[size];
+            }
+
+            Array.Clear(_lavaCellBuffer, 0, size);
             for (int y = 0; y < plan.Height; y++)
             {
                 for (int x = 0; x < plan.Width; x++)
@@ -640,6 +658,11 @@ public sealed class SimulationHost
                     {
                         _roadCellBuffer[Overworld.GetIndex(new WorldCoord(x, y))] = true;
                     }
+
+                    if (plan.LavaFlowGraph.PathCells.Contains((x, y)))
+                    {
+                        _lavaCellBuffer[Overworld.GetIndex(new WorldCoord(x, y))] = true;
+                    }
                 }
             }
         }
@@ -647,6 +670,7 @@ public sealed class SimulationHost
         {
             _tectonicBuffer = null;
             _roadCellBuffer = null;
+            _lavaCellBuffer = null;
         }
 
         _riverEdgeBuffer ??= new byte[size];

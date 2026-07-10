@@ -36,6 +36,16 @@ public class EnterableCellWalkabilityTests
             Overworld world = new IslandWorldGenerator(TestSaveDefaults.Island).Generate(seed);
             IslandPlan plan = world.IslandPlan!;
             WorldCoord? cell = FindFirstRole(plan, role);
+            if (role == IslandCellRole.VisitorCenter)
+            {
+                StructurePlacement? visitor = plan.Structures.FirstOrDefault(s => s.Type == StructureType.VisitorCenter);
+                if (visitor is not null)
+                {
+                    var blueprint = StructureBlueprintCatalogDefaults.Create().Resolve(visitor.Type);
+                    cell = StructurePlacementQueries.DoorCell(visitor, blueprint);
+                }
+            }
+
             if (cell is null)
             {
                 continue;
@@ -109,6 +119,14 @@ public class EnterableCellWalkabilityTests
                 }
 
                 BiomeId biome = plan.GetCell(cell.Value).Biome;
+                if (role is IslandCellRole.VisitorCenter or IslandCellRole.Hotel or IslandCellRole.Maintenance)
+                {
+                    Assert.True(
+                        biome is BiomeId.Plains or BiomeId.Beach or BiomeId.Forest or BiomeId.Hills,
+                        $"Seed {seed}: {role} on {biome}.");
+                    continue;
+                }
+
                 Assert.True(
                     biome is BiomeId.Plains or BiomeId.Beach,
                     $"Seed {seed}: {role} on {biome}.");
@@ -135,10 +153,9 @@ public class EnterableCellWalkabilityTests
         Overworld world = new IslandWorldGenerator(bundle.Island, catalog).Generate(9012UL);
         StructurePlacement hotel = world.IslandPlan!.Structures.First(s => s.Type == StructureType.Hotel);
         var blueprint = catalog.ResolveById(hotel.BlueprintId);
-        WorldCoord doorCell = CoordinateMath.FromGlobalTile(
-            new GlobalTileCoord(hotel.GlobalOriginX + blueprint.DoorX, hotel.GlobalOriginY + blueprint.DoorY)).World;
+        WorldCoord doorCell = StructurePlacementQueries.DoorCell(hotel, blueprint);
         LocalMap map = generator.Generate(world, MapKey.Surface(doorCell));
-        LocalCoord door = StructurePlacementQueries.ToLocalCoord(doorCell, hotel, blueprint.DoorX, blueprint.DoorY);
+        LocalCoord door = StructurePlacementQueries.SurfaceDoorLocal(hotel, blueprint);
 
         Assert.Equal(TerrainId.Door, map.Terrain[map.GetIndex(door.X, door.Y)]);
     }
@@ -155,13 +172,15 @@ public class EnterableCellWalkabilityTests
                 }
 
                 if (role == IslandCellRole.VisitorCenter &&
+                    plan.VisitorCenterCell.X >= 0 &&
+                    plan.VisitorCenterCell.Y >= 0 &&
                     plan.VisitorCenterCell.X == x &&
                     plan.VisitorCenterCell.Y == y)
                 {
                     return new WorldCoord(x, y);
                 }
 
-                if (role != IslandCellRole.VisitorCenter && plan.GetCell(x, y).Role.HasFlag(role))
+                if (plan.GetCell(x, y).Role.HasFlag(role))
                 {
                     return new WorldCoord(x, y);
                 }

@@ -26,7 +26,16 @@ public class IslandFieldGenerationTests
         MaintenanceAreaCount = 1,
         RuinCount = 1,
         FortificationCount = 1,
-        PaddockCount = 1
+        PaddockCount = 1,
+        OceanFrame = new OceanFrameDefinition
+        {
+            OverscanScale = 1.2f,
+            MinLandDistanceFromEdge = 10,
+            MinCoastDistanceFromEdge = 6,
+            MaxRegenerationAttempts = 4,
+            MaxAxisAlignedCoastRun = 24,
+            EdgeLinearityBand = 16,
+        }
     };
 
     [Fact]
@@ -89,6 +98,79 @@ public class IslandFieldGenerationTests
     }
 
     [Fact]
+    public void CoastalWidthStage_ProducesDeterministicSharedSmoothedVariation()
+    {
+        var config = CreateNublarConfig();
+        var first = CreateCoastalFieldPlan();
+        var second = CreateCoastalFieldPlan();
+
+        CoastalWidthStage.Execute(first, config, seed: 4242UL);
+        CoastalWidthStage.Execute(second, config, seed: 4242UL);
+
+        Assert.Equal(first.CoastalWidthVariation, second.CoastalWidthVariation);
+        Assert.Equal(first.BeachWidth, second.BeachWidth);
+        Assert.Equal(first.ShallowWaterWidth, second.ShallowWaterWidth);
+        Assert.True(first.CoastalWidthVariation.Distinct().Count() > 8);
+
+        float maxNeighborDelta = 0f;
+        float maxShallowBlendDelta = 0f;
+        for (int y = 0; y < first.Height; y++)
+        {
+            for (int x = 0; x < first.Width; x++)
+            {
+                int index = y * first.Width + x;
+                float blend = first.CoastalWidthVariation[index];
+                float expectedBeach = config.MinBeachCoastDistance
+                    + (config.MaxBeachCoastDistance - config.MinBeachCoastDistance) * blend;
+                Assert.Equal(expectedBeach, first.BeachWidth[index], precision: 6);
+                float shallowBlend =
+                    (first.ShallowWaterWidth[index] - config.MinShallowWaterCoastDistance)
+                    / (config.MaxShallowWaterCoastDistance - config.MinShallowWaterCoastDistance);
+                float shallowBlendDelta = MathF.Abs(shallowBlend - blend);
+                Assert.InRange(shallowBlendDelta, 0f, 0.151f);
+                maxShallowBlendDelta = MathF.Max(maxShallowBlendDelta, shallowBlendDelta);
+
+                if (x + 1 < first.Width)
+                {
+                    maxNeighborDelta = MathF.Max(
+                        maxNeighborDelta,
+                        MathF.Abs(blend - first.CoastalWidthVariation[index + 1]));
+                }
+
+                if (y + 1 < first.Height)
+                {
+                    maxNeighborDelta = MathF.Max(
+                        maxNeighborDelta,
+                        MathF.Abs(blend - first.CoastalWidthVariation[index + first.Width]));
+                }
+            }
+        }
+
+        Assert.True(maxNeighborDelta < 0.12f, $"Adjacent coastal variation jumped by {maxNeighborDelta:0.###}.");
+        Assert.True(maxShallowBlendDelta > 0.001f, "Shallow water should retain independent secondary variation.");
+    }
+
+    [Fact]
+    public void IslandGenerator_ShallowWaterUsesSharedLocalWidth()
+    {
+        var config = CreateNublarConfig();
+        IslandPlan plan = new IslandPlanner(config).Generate(128, 128, seed: 4242UL);
+
+        var shallowIndices = Enumerable.Range(0, plan.Cells.Length)
+            .Where(index => plan.Cells[index].Biome == BiomeId.ShallowWater && plan.CoastDistance[index] <= 0f)
+            .ToList();
+
+        Assert.NotEmpty(shallowIndices);
+        Assert.All(shallowIndices, index =>
+            Assert.True(-plan.CoastDistance[index] <= plan.ShallowWaterWidth[index] + 0.0001f));
+        Assert.True(plan.ShallowWaterWidth.Select(width => MathF.Round(width, 4)).Distinct().Count() >= 3);
+        Assert.True(plan.GenerationDiagnostics.MaxObservedBeachWidth
+            > plan.GenerationDiagnostics.MinObservedBeachWidth);
+        Assert.True(plan.GenerationDiagnostics.MaxObservedShallowWaterWidth
+            > plan.GenerationDiagnostics.MinObservedShallowWaterWidth);
+    }
+
+    [Fact]
     public void IslandGenerator_RidgesRaiseElevation()
     {
         var config = CreateNublarConfig();
@@ -136,5 +218,27 @@ public class IslandFieldGenerationTests
         Assert.Contains(plan.Structures, structure => structure.Type == StructureType.VisitorCenter);
         Assert.Contains(plan.Structures, structure => structure.Type == StructureType.Dock);
         Assert.True(plan.Cells.Count(cell => cell.IsLand) > 1000);
+    }
+
+    private static IslandPlan CreateCoastalFieldPlan()
+    {
+        const int size = 32;
+        var plan = new IslandPlan(size, size, seed: 4242UL)
+        {
+            CoastDistance = new float[size * size],
+            Concavity = new float[size * size],
+        };
+
+        for (int y = 0; y < size; y++)
+        {
+            for (int x = 0; x < size; x++)
+            {
+                int index = y * size + x;
+                plan.CoastDistance[index] = (x - size / 2) / (float)size;
+                plan.Concavity[index] = MathF.Sin(y * 0.2f) * 0.4f;
+            }
+        }
+
+        return plan;
     }
 }

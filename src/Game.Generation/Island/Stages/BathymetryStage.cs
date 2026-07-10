@@ -34,9 +34,7 @@ public static class BathymetryStage
                 if (coastDistance > 0f)
                 {
                     cell.Elevation = -config.ShelfDepth * 0.35f;
-                    cell.Biome = coastDistance <= config.BeachCoastDistance
-                        ? BiomeId.ShallowWater
-                        : BiomeId.Ocean;
+                    cell.Biome = BiomeId.ShallowWater;
                     continue;
                 }
 
@@ -53,7 +51,16 @@ public static class BathymetryStage
                 float deepDepth = config.DeepOceanDepth * NoiseUtility.SmoothStep(shelfWidth, config.DeepOceanWidth, offshore);
                 cell.Elevation = -(shelfDepth + deepDepth);
 
-                cell.Biome = ClassifyOceanBiome(offshore, shelfWidth, concavity, eastBias, cell.Temperature);
+                float shallowWaterWidth = plan.ShallowWaterWidth.Length > index
+                    ? plan.ShallowWaterWidth[index]
+                    : config.MinShallowWaterCoastDistance;
+                cell.Biome = ClassifyOceanBiome(
+                    offshore,
+                    shelfWidth,
+                    shallowWaterWidth,
+                    concavity,
+                    eastBias,
+                    cell.Temperature);
             }
         }
     }
@@ -61,6 +68,7 @@ public static class BathymetryStage
     private static BiomeId ClassifyOceanBiome(
         float offshore,
         float shelfWidth,
+        float shallowWaterWidth,
         float concavity,
         float eastBias,
         float temperature)
@@ -70,7 +78,7 @@ public static class BathymetryStage
             return BiomeId.Ocean;
         }
 
-        if (offshore <= shelfWidth * 0.18f)
+        if (offshore <= shallowWaterWidth)
         {
             return BiomeId.ShallowWater;
         }

@@ -1,4 +1,5 @@
 using Game.Generation.LocalMaps;
+using Game.Generation.Regional;
 using Game.Generation.WorldGen;
 using Game.Simulation.Coordinates;
 using Game.Simulation.LocalMaps;
@@ -64,12 +65,17 @@ public class FacilityRoadNetworkTests
     {
         Overworld world = new IslandWorldGenerator(TestSaveDefaults.Island).Generate(seed);
         var localGenerator = new LocalMapGenerator();
+        IslandPlan plan = world.IslandPlan!;
 
-        foreach ((int x, int y) in world.IslandPlan!.RoadGraph.PathCells)
+        Assert.NotEmpty(plan.RoadGraph.GlobalPathTiles);
+        foreach ((int globalX, int globalY) in plan.RoadGraph.GlobalPathTiles)
         {
-            LocalMap map = localGenerator.Generate(world, MapKey.Surface(new WorldCoord(x, y)));
-            int roadTiles = map.Terrain.Count(terrain => terrain == TerrainId.Road);
-            Assert.True(roadTiles > 0, $"Road cell ({x},{y}) has no Road terrain.");
+            (WorldCoord cell, LocalCoord local) = CoordinateMath.FromGlobalTile(new GlobalTileCoord(globalX, globalY));
+            LocalMap map = localGenerator.Generate(world, MapKey.Surface(cell));
+            TerrainId terrain = map.Terrain[map.GetIndex(local.X, local.Y)];
+            Assert.True(
+                terrain is TerrainId.Road or TerrainId.ShallowFord or TerrainId.Door,
+                $"Global road tile ({globalX},{globalY}) is {terrain}, expected Road.");
         }
     }
 
@@ -102,6 +108,39 @@ public class FacilityRoadNetworkTests
         }
 
         Assert.True(hasRoadConnection);
+    }
+
+    [Fact]
+    public void GlobalRoadTiles_AreOneConnectedComponent()
+    {
+        IslandPlan plan = new IslandWorldGenerator(TestSaveDefaults.Island).Generate(4242UL).IslandPlan!;
+
+        Assert.NotEmpty(plan.RoadGraph.GlobalPathTiles);
+        Assert.True(GlobalTileConnectivityValidator.IsConnected(plan.RoadGraph.GlobalPathTiles));
+    }
+
+    [Fact]
+    public void StructureSpurs_EndAtResolvedBlueprintDoors()
+    {
+        Overworld world = new IslandWorldGenerator(TestSaveDefaults.Island).Generate(4242UL);
+        IslandPlan plan = world.IslandPlan!;
+        var catalog = StructureBlueprintCatalogDefaults.Create();
+        var localGenerator = new LocalMapGenerator(catalog);
+
+        foreach (StructurePlacement structure in plan.Structures.Where(s => s.Type != StructureType.Helipad))
+        {
+            StructureBlueprintDefinition blueprint = catalog.ResolveById(structure.BlueprintId);
+            (int doorX, int doorY) = StructurePlacementQueries.DoorGlobal(structure, blueprint);
+            Assert.Contains((doorX, doorY), plan.RoadGraph.GlobalPathTiles);
+            Assert.Contains(
+                new[] { (doorX + 1, doorY), (doorX - 1, doorY), (doorX, doorY + 1), (doorX, doorY - 1) },
+                tile => plan.RoadGraph.GlobalPathTiles.Contains(tile));
+
+            (WorldCoord cell, LocalCoord local) =
+                CoordinateMath.FromGlobalTile(new GlobalTileCoord(doorX, doorY));
+            LocalMap map = localGenerator.Generate(world, MapKey.Surface(cell));
+            Assert.Equal(TerrainId.Door, map.Terrain[map.GetIndex(local.X, local.Y)]);
+        }
     }
 
     public static IEnumerable<object[]> SeedData => Seeds.Select(seed => new object[] { seed });

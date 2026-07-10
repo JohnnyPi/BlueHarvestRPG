@@ -18,7 +18,6 @@ public static class RegionBiomeStage
         int blendCount = Math.Clamp(config.BiomeBlendNeighborCount, 1, 4);
         var regionById = plan.Regions.ToDictionary(region => region.Id);
         bool useCoastDistance = !config.UseLegacyIslandMask && plan.CoastDistance.Length == plan.Width * plan.Height;
-
         foreach (IslandRegion region in plan.Regions)
         {
             ref IslandCellData siteCell = ref plan.GetCell(region.SiteX, region.SiteY);
@@ -54,12 +53,16 @@ public static class RegionBiomeStage
                 {
                     float coastDistance = plan.CoastDistance[index];
                     float concavity = plan.Concavity.Length > index ? plan.Concavity[index] : 0f;
-                    float beachWidth = config.BeachCoastDistance + concavity * 0.03f;
+                    float beachWidth = plan.BeachWidth.Length > index
+                        ? plan.BeachWidth[index]
+                        : config.MinBeachCoastDistance;
                     float riverInfluence = plan.RiverInfluence.Length > index ? plan.RiverInfluence[index] : 0f;
 
                     if (coastDistance <= beachWidth)
                     {
-                        cell.Biome = ResolveCoastalBiome(plan, index, cell);
+                        // Landform remains available as metadata for local sand/rock/mangrove
+                        // treatment; it does not punch holes in the beach perimeter biome.
+                        cell.Biome = BiomeId.Beach;
                         continue;
                     }
 
@@ -306,22 +309,6 @@ public static class RegionBiomeStage
         }
 
         return BiomeId.Plains;
-    }
-
-    private static BiomeId ResolveCoastalBiome(IslandPlan plan, int index, IslandCellData cell)
-    {
-        if (plan.CoastalLandforms.Length > index)
-        {
-            return plan.CoastalLandforms[index] switch
-            {
-                CoastalLandform.Cliff or CoastalLandform.RockyCoast or CoastalLandform.Headland => BiomeId.Hills,
-                CoastalLandform.Mangrove or CoastalLandform.Estuary or CoastalLandform.RiverMouth => BiomeId.Swamp,
-                CoastalLandform.LagoonEdge or CoastalLandform.Bay => BiomeId.Beach,
-                _ => BiomeId.Beach,
-            };
-        }
-
-        return BiomeId.Beach;
     }
 
     private static BiomeId ApplyCellVariation(

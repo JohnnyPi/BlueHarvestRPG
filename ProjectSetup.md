@@ -4,7 +4,7 @@ For a **new large-scale 2D top-down roguelike**, I recommend:
 
 > **C# + .NET 10 LTS + MonoGame 3.8.4.1**, with a custom simulation-first architecture and MonoGame used primarily for rendering, input, audio, and the application loop.
 
-Given your C# experience, Windows target, preference for data-driven systems, and existing “Lego Box” component philosophy, this is the best balance of performance, development speed, architectural control, and likelihood of actually completing the game.
+Given your C# experience, Windows and macOS targets, preference for data-driven systems, and existing “Lego Box” component philosophy, this is the best balance of performance, development speed, architectural control, and likelihood of actually completing the game.
 
 .NET 10 is the current active LTS release and is supported until November 2028. MonoGame 3.8.4.1 supports .NET 10 and provides rendering, input, audio, and content-processing foundations without forcing your world into a scene hierarchy. ([Microsoft][1])
 
@@ -13,8 +13,8 @@ Given your C# experience, Windows target, preference for data-driven systems, an
 | Layer              | Recommendation                                                      |
 | ------------------ | ------------------------------------------------------------------- |
 | Language/runtime   | **C# on .NET 10 LTS**                                               |
-| Game framework     | **MonoGame 3.8.4.1 WindowsDX**                                      |
-| Graphics           | Direct3D 11 through MonoGame, HLSL shaders                          |
+| Game framework     | **MonoGame 3.8.4.1 DesktopGL**                                      |
+| Graphics           | OpenGL through MonoGame DesktopGL                                   |
 | Simulation         | Pure .NET class libraries, independent of MonoGame                  |
 | Entity model       | Data-oriented component stores for actors; dense arrays for terrain |
 | World structure    | Chunked 2D grids, region graphs, simulation zones                   |
@@ -29,7 +29,7 @@ Given your C# experience, Windows target, preference for data-driven systems, an
 | Profiling          | BenchmarkDotNet, dotnet-trace, Visual Studio profiler, RenderDoc    |
 | Logging            | Structured logging such as Serilog                                  |
 
-Use MonoGame’s current stable release rather than the 3.8.5 previews. MonoGame’s roadmap still identifies 3.8.4 as the live release, while Vulkan, DirectX 12, and the new content system remain preview work for 3.8.5 and later. Direct3D 11 is more than sufficient for a sophisticated 2D game. ([MonoGame Documentation][2])
+Use MonoGame’s current stable release rather than the 3.8.5 previews. MonoGame’s roadmap still identifies 3.8.4 as the live release, while Vulkan, DirectX 12, and the new content system remain preview work for 3.8.5 and later. DesktopGL keeps the rendering backend and content format aligned across Windows and macOS. ([MonoGame Documentation][2])
 
 # Why this fits the project
 

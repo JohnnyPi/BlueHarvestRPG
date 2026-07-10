@@ -33,6 +33,8 @@ public static class BiomeBalanceHelper
     {
         StampVisitorCenterPlains(plan);
 
+        var ruinPads = new List<WorldCoord>();
+
         for (int y = 0; y < plan.Height; y++)
         {
             for (int x = 0; x < plan.Width; x++)
@@ -45,11 +47,7 @@ public static class BiomeBalanceHelper
                 ref IslandCellData cell = ref plan.GetCell(x, y);
                 if ((cell.Role & IslandCellRole.Road) != 0)
                 {
-                    if (!cell.IsCoast)
-                    {
-                        cell.Biome = BiomeId.Plains;
-                    }
-
+                    cell.Biome = cell.IsCoast ? BiomeId.Beach : BiomeId.Plains;
                     continue;
                 }
 
@@ -66,11 +64,25 @@ public static class BiomeBalanceHelper
                 {
                     cell.Biome = BiomeId.Plains;
                 }
+
+                if ((cell.Role & (IslandCellRole.Ruin | IslandCellRole.Fortification)) != 0 && !cell.IsCoast)
+                {
+                    ruinPads.Add(new WorldCoord(x, y));
+                }
             }
+        }
+
+        foreach (WorldCoord center in ruinPads)
+        {
+            StampRadius(plan, center, radius: 2, BiomeId.Plains);
         }
     }
 
-    public static void EnsureBiomeFloor(IslandPlan plan, ulong stageSeed, float minShare = 0.025f)
+    public static void EnsureBiomeFloor(
+        IslandPlan plan,
+        ulong stageSeed,
+        float minShare = 0.025f,
+        IReadOnlyDictionary<BiomeId, int>? minimumCounts = null)
     {
         var landCells = CollectLandCells(plan);
         if (landCells.Count == 0)
@@ -88,11 +100,15 @@ public static class BiomeBalanceHelper
             BiomeId.Mountains
         ];
 
-        int minCells = Math.Max(4, (int)(landCells.Count * minShare));
+        int shareMinimum = Math.Max(4, (int)(landCells.Count * minShare));
         var random = new DeterministicRandom(SeedUtility.DeriveStage(stageSeed, 44));
 
         foreach (BiomeId biome in required)
         {
+            int minCells = minimumCounts is not null
+                && minimumCounts.TryGetValue(biome, out int configuredMinimum)
+                    ? Math.Max(shareMinimum, configuredMinimum)
+                    : shareMinimum;
             int current = landCells.Count(pos => plan.GetCell(pos.X, pos.Y).Biome == biome);
             int needed = minCells - current;
             if (needed <= 0)
@@ -350,8 +366,12 @@ public static class BiomeBalanceHelper
         else
         {
             (int X, int Y)? anchor = CollectLandCells(plan)
+                .Where(pos =>
+                    !plan.GetCell(pos.X, pos.Y).IsCoast
+                    && !IsProtectedLandmarkCell(plan, pos.X, pos.Y))
                 .OrderByDescending(pos => BiomeSuitabilityHelper.ScoreBiomeForCell(biome, plan.GetCell(pos.X, pos.Y)))
                 .ThenBy(_ => random.NextFloat())
+                .Select(pos => ((int X, int Y)?)pos)
                 .FirstOrDefault();
 
             if (anchor is null)
@@ -368,12 +388,6 @@ public static class BiomeBalanceHelper
         while (needed > 0 && frontier.Count > 0)
         {
             int index = frontier.Dequeue();
-            if (visited.Contains(index))
-            {
-                continue;
-            }
-
-            visited.Add(index);
             int x = index % plan.Width;
             int y = index / plan.Width;
             if (!plan.IsLand(x, y) || plan.GetCell(x, y).IsCoast || IsProtectedLandmarkCell(plan, x, y))
@@ -406,7 +420,14 @@ public static class BiomeBalanceHelper
             }
 
             int neighborIndex = ny * plan.Width + nx;
-            if (visited.Contains(neighborIndex))
+            if (!visited.Add(neighborIndex))
+            {
+                continue;
+            }
+
+            if (!plan.IsLand(nx, ny)
+                || plan.GetCell(nx, ny).IsCoast
+                || IsProtectedLandmarkCell(plan, nx, ny))
             {
                 continue;
             }

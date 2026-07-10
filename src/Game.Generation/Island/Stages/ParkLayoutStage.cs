@@ -2,6 +2,7 @@ using Game.Content.Definitions;
 using Game.Generation.Island.Stages;
 using Game.Generation.Noise;
 using Game.Simulation.Coordinates;
+using Game.Simulation.LocalMaps;
 using Game.Simulation.Seeds;
 using Game.Simulation.World.Island;
 
@@ -11,29 +12,44 @@ public static class ParkLayoutStage
 {
     private const uint StageSalt = 4;
 
-    public static void Execute(IslandPlan plan, IslandDefinition config, ulong seed)
+    public static void Execute(
+        IslandPlan plan,
+        IslandDefinition config,
+        ulong seed,
+        StructureBlueprintCatalog? blueprintCatalog = null)
     {
+        blueprintCatalog ??= StructureBlueprintCatalogDefaults.Create();
         ulong stageSeed = SeedUtility.DeriveStage(seed, StageSalt);
         var random = new DeterministicRandom(stageSeed);
 
-        WorldCoord? visitorCell = ResolveHubCell(plan);
-        if (visitorCell is null)
+        WorldCoord? hubCell = ResolveHubCell(plan);
+        if (hubCell is null)
         {
             return;
         }
 
-        plan.VisitorCenterCell = visitorCell.Value;
-        plan.VisitorCenterRegionId = plan.GetRegionId(visitorCell.Value.X, visitorCell.Value.Y);
-        IslandPlacementHelper.MarkRole(plan, visitorCell.Value, IslandCellRole.VisitorCenter);
+        WorldCoord visitorSite = PickVisitorSiteNearHub(plan, hubCell.Value, stageSeed ^ 0x715CUL);
+        plan.VisitorCenterCell = visitorSite;
+        plan.VisitorCenterRegionId = plan.GetRegionId(visitorSite.X, visitorSite.Y);
 
-        (int visitorGx, int visitorGy) = IslandPlacementHelper.CenteredOrigin(visitorCell.Value, 28, 24);
-        plan.Structures.Add(StructurePlacement.CreatePending(
+        TryPlaceStructure(
+            plan,
+            config,
+            visitorSite,
             StructureType.VisitorCenter,
-            visitorGx,
-            visitorGy,
-            28,
-            24));
-        RoadNetworkStage.AddStructureSpur(plan, visitorCell.Value, config);
+            IslandCellRole.VisitorCenter,
+            largeWidth: 96,
+            largeHeight: 80,
+            fallbackWidth: 28,
+            fallbackHeight: 24,
+            blueprintCatalog: blueprintCatalog);
+
+        StructurePlacement? visitorStructure = plan.Structures
+            .LastOrDefault(structure => structure.Type == StructureType.VisitorCenter);
+        if (visitorStructure is not null)
+        {
+            plan.VisitorCenterCell = StructurePlacementQueries.OriginCell(visitorStructure);
+        }
 
         List<WorldCoord> coastCells = IslandPlacementHelper.FindCoastalCells(plan);
         List<WorldCoord> dockCells = PickRoadConnectedCoastCells(plan, coastCells, config.DockCount, stageSeed ^ 0xD0C001UL);
@@ -42,55 +58,62 @@ public static class ParkLayoutStage
         {
             IslandPlacementHelper.MarkRole(plan, dockCell, IslandCellRole.Dock);
             (int gx, int gy) = IslandPlacementHelper.CenteredOrigin(dockCell, 20, 12);
-            plan.Structures.Add(StructurePlacement.CreatePending(StructureType.Dock, gx, gy, 20, 12));
-            RoadNetworkStage.AddStructureSpur(plan, dockCell, config);
+            StructurePlacement structure = StructurePlacement.CreatePending(StructureType.Dock, gx, gy, 20, 12);
+            plan.Structures.Add(structure);
+            AddStructureDoorSpur(plan, structure, config, blueprintCatalog);
         }
 
-        List<WorldCoord> roadAdjacentCandidates = CollectRoadAdjacentCandidates(plan, visitorCell.Value);
+        List<WorldCoord> roadAdjacentCandidates = CollectRoadAdjacentCandidates(plan, hubCell.Value);
         PlaceNearRoad(
             plan,
             config,
-            visitorCell.Value,
+            hubCell.Value,
             roadAdjacentCandidates,
             StructureType.Helipad,
             IslandCellRole.Helipad,
             config.HelipadCount,
             10,
             10,
-            random);
+            random,
+            blueprintCatalog);
         PlaceNearRoad(
             plan,
             config,
-            visitorCell.Value,
+            hubCell.Value,
             roadAdjacentCandidates,
             StructureType.Hotel,
             IslandCellRole.Hotel,
             config.HotelCount,
+            96,
+            72,
             24,
             18,
-            random);
+            random,
+            blueprintCatalog);
         PlaceNearRoad(
             plan,
             config,
-            visitorCell.Value,
+            hubCell.Value,
             roadAdjacentCandidates,
             StructureType.Restaurant,
             IslandCellRole.Restaurant,
             config.RestaurantCount,
             14,
             12,
-            random);
+            random,
+            blueprintCatalog);
         PlaceNearRoad(
             plan,
             config,
-            visitorCell.Value,
+            hubCell.Value,
             roadAdjacentCandidates,
             StructureType.Attraction,
             IslandCellRole.Attraction,
             config.AttractionCount,
             18,
             18,
-            random);
+            random,
+            blueprintCatalog);
 
         if (!plan.Structures.Any(s => s.Type == StructureType.Attraction))
         {
@@ -103,8 +126,10 @@ public static class ParkLayoutStage
 
                 IslandPlacementHelper.MarkRole(plan, cell, IslandCellRole.Attraction);
                 (int gx, int gy) = IslandPlacementHelper.CenteredOrigin(cell, 18, 18);
-                plan.Structures.Add(StructurePlacement.CreatePending(StructureType.Attraction, gx, gy, 18, 18));
-                RoadNetworkStage.AddStructureSpur(plan, cell, config);
+                StructurePlacement structure =
+                    StructurePlacement.CreatePending(StructureType.Attraction, gx, gy, 18, 18);
+                plan.Structures.Add(structure);
+                AddStructureDoorSpur(plan, structure, config, blueprintCatalog);
             }
         }
     }
@@ -137,6 +162,37 @@ public static class ParkLayoutStage
         }
 
         return IslandPlacementHelper.PickSpreadCells(coastCells, count, stageSeed);
+    }
+
+    private static WorldCoord PickVisitorSiteNearHub(IslandPlan plan, WorldCoord hubCell, ulong stageSeed)
+    {
+        var candidates = new List<WorldCoord>();
+        for (int dy = -4; dy <= 4; dy++)
+        {
+            for (int dx = -4; dx <= 4; dx++)
+            {
+                int x = hubCell.X + dx;
+                int y = hubCell.Y + dy;
+                if (!plan.Contains(x, y) || !plan.IsLand(x, y) || plan.GetCell(x, y).IsCoast)
+                {
+                    continue;
+                }
+
+                if (dx == 0 && dy == 0)
+                {
+                    continue;
+                }
+
+                candidates.Add(new WorldCoord(x, y));
+            }
+        }
+
+        if (candidates.Count == 0)
+        {
+            return hubCell;
+        }
+
+        return IslandPlacementHelper.PickSpreadCells(candidates, 1, stageSeed).First();
     }
 
     private static List<WorldCoord> CollectRoadAdjacentCandidates(IslandPlan plan, WorldCoord visitorCell)
@@ -230,6 +286,96 @@ public static class ParkLayoutStage
         return IslandPlacementHelper.PickSpreadCells(candidates, count, stageSeed);
     }
 
+    private static bool TryPlaceStructure(
+        IslandPlan plan,
+        IslandDefinition config,
+        WorldCoord anchorCell,
+        StructureType type,
+        IslandCellRole role,
+        int largeWidth,
+        int largeHeight,
+        int fallbackWidth,
+        int fallbackHeight,
+        StructureBlueprintCatalog blueprintCatalog)
+    {
+        var candidates = CollectPlacementCandidates(plan, anchorCell, radius: 14);
+        if (TryPlaceFromCandidates(
+                plan,
+                config,
+                candidates,
+                type,
+                role,
+                largeWidth,
+                largeHeight,
+                blueprintCatalog))
+        {
+            return true;
+        }
+
+        return TryPlaceFromCandidates(
+            plan,
+            config,
+            candidates,
+            type,
+            role,
+            fallbackWidth,
+            fallbackHeight,
+            blueprintCatalog);
+    }
+
+    private static bool TryPlaceFromCandidates(
+        IslandPlan plan,
+        IslandDefinition config,
+        IEnumerable<WorldCoord> candidates,
+        StructureType type,
+        IslandCellRole role,
+        int width,
+        int height,
+        StructureBlueprintCatalog blueprintCatalog)
+    {
+        foreach (WorldCoord cell in candidates)
+        {
+            (int gx, int gy) = IslandPlacementHelper.CenteredOrigin(cell, width, height);
+            if (!IslandPlacementHelper.CanPlaceFootprint(plan, gx, gy, width, height))
+            {
+                continue;
+            }
+
+            IslandPlacementHelper.MarkFootprintRoles(plan, gx, gy, width, height, role);
+            StructurePlacement structure = StructurePlacement.CreatePending(type, gx, gy, width, height);
+            plan.Structures.Add(structure);
+            AddStructureDoorSpur(plan, structure, config, blueprintCatalog);
+            return true;
+        }
+
+        return false;
+    }
+
+    private static List<WorldCoord> CollectPlacementCandidates(IslandPlan plan, WorldCoord anchor, int radius)
+    {
+        var candidates = new List<(WorldCoord Cell, float Score)> { (anchor, 0f) };
+
+        for (int y = anchor.Y - radius; y <= anchor.Y + radius; y++)
+        {
+            for (int x = anchor.X - radius; x <= anchor.X + radius; x++)
+            {
+                if (!plan.Contains(x, y) || !plan.IsLand(x, y) || plan.GetCell(x, y).IsCoast)
+                {
+                    continue;
+                }
+
+                int dx = x - anchor.X;
+                int dy = y - anchor.Y;
+                candidates.Add((new WorldCoord(x, y), dx * dx + dy * dy));
+            }
+        }
+
+        return candidates
+            .OrderBy(entry => entry.Score)
+            .Select(entry => entry.Cell)
+            .ToList();
+    }
+
     private static void PlaceNearRoad(
         IslandPlan plan,
         IslandDefinition config,
@@ -240,7 +386,39 @@ public static class ParkLayoutStage
         int count,
         int width,
         int height,
-        DeterministicRandom random)
+        DeterministicRandom random,
+        StructureBlueprintCatalog blueprintCatalog)
+    {
+        PlaceNearRoad(
+            plan,
+            config,
+            visitorCell,
+            candidates,
+            type,
+            role,
+            count,
+            width,
+            height,
+            width,
+            height,
+            random,
+            blueprintCatalog);
+    }
+
+    private static void PlaceNearRoad(
+        IslandPlan plan,
+        IslandDefinition config,
+        WorldCoord visitorCell,
+        List<WorldCoord> candidates,
+        StructureType type,
+        IslandCellRole role,
+        int count,
+        int width,
+        int height,
+        int fallbackWidth,
+        int fallbackHeight,
+        DeterministicRandom random,
+        StructureBlueprintCatalog blueprintCatalog)
     {
         var sorted = candidates
             .Select(c =>
@@ -253,48 +431,95 @@ public static class ParkLayoutStage
             .Select(entry => entry.Cell)
             .ToList();
 
-        int placed = 0;
-        foreach (WorldCoord cell in sorted)
-        {
-            if (placed >= count)
-            {
-                break;
-            }
-
-            if (plan.GetCell(cell).Role != IslandCellRole.None && plan.GetCell(cell).Role != IslandCellRole.Coast)
-            {
-                continue;
-            }
-
-            IslandPlacementHelper.MarkRole(plan, cell, role);
-            (int gx, int gy) = IslandPlacementHelper.CenteredOrigin(cell, width, height);
-            plan.Structures.Add(StructurePlacement.CreatePending(type, gx, gy, width, height));
-            RoadNetworkStage.AddStructureSpur(plan, cell, config);
-            placed++;
-        }
+        int placed = PlaceManyFromCandidates(
+            plan,
+            config,
+            visitorCell,
+            sorted,
+            type,
+            role,
+            count,
+            width,
+            height,
+            blueprintCatalog);
 
         if (placed >= count)
         {
             return;
         }
 
-        foreach (WorldCoord cell in PickRoadAdjacentFallback(plan, count - placed, (ulong)(type.GetHashCode() + placed + 17)))
+        List<WorldCoord> fallbackCandidates = sorted
+            .Concat(PickRoadAdjacentFallback(plan, count - placed, (ulong)(type.GetHashCode() + placed + 17)))
+            .Distinct()
+            .ToList();
+
+        PlaceManyFromCandidates(
+            plan,
+            config,
+            visitorCell,
+            fallbackCandidates,
+            type,
+            role,
+            count - placed,
+            fallbackWidth,
+            fallbackHeight,
+            blueprintCatalog);
+    }
+
+    private static int PlaceManyFromCandidates(
+        IslandPlan plan,
+        IslandDefinition config,
+        WorldCoord visitorCell,
+        IEnumerable<WorldCoord> candidates,
+        StructureType type,
+        IslandCellRole role,
+        int count,
+        int width,
+        int height,
+        StructureBlueprintCatalog blueprintCatalog)
+    {
+        int placed = 0;
+        foreach (WorldCoord cell in candidates)
         {
             if (placed >= count)
             {
                 break;
             }
 
-            if (plan.GetCell(cell).Role != IslandCellRole.None && plan.GetCell(cell).Role != IslandCellRole.Coast)
+            if (cell == visitorCell && (width > LocalMap.Width || height > LocalMap.Height))
             {
                 continue;
             }
 
-            IslandPlacementHelper.MarkRole(plan, cell, role);
+            if (plan.GetCell(cell).Role is not (IslandCellRole.None or IslandCellRole.Coast))
+            {
+                continue;
+            }
+
             (int gx, int gy) = IslandPlacementHelper.CenteredOrigin(cell, width, height);
-            plan.Structures.Add(StructurePlacement.CreatePending(type, gx, gy, width, height));
-            RoadNetworkStage.AddStructureSpur(plan, cell, config);
+            if (!IslandPlacementHelper.CanPlaceFootprint(plan, gx, gy, width, height))
+            {
+                continue;
+            }
+
+            IslandPlacementHelper.MarkFootprintRoles(plan, gx, gy, width, height, role);
+            StructurePlacement structure = StructurePlacement.CreatePending(type, gx, gy, width, height);
+            plan.Structures.Add(structure);
+            AddStructureDoorSpur(plan, structure, config, blueprintCatalog);
             placed++;
         }
+
+        return placed;
+    }
+
+    private static void AddStructureDoorSpur(
+        IslandPlan plan,
+        StructurePlacement structure,
+        IslandDefinition config,
+        StructureBlueprintCatalog blueprintCatalog)
+    {
+        StructureBlueprintDefinition blueprint = blueprintCatalog.Resolve(structure.Type);
+        WorldCoord doorCell = StructurePlacementQueries.DoorCell(structure, blueprint);
+        RoadNetworkStage.AddStructureSpur(plan, doorCell, config);
     }
 }

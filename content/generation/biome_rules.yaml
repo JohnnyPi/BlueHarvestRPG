@@ -1,6 +1,8 @@
 ﻿oceanMaxElevation: 0.35
 beachMaxElevation: 0.39
 mountainsMinElevation: 0.82
+smallMountainMinElevation: 0.75
 hillsMinElevation: 0.68
+foothillsMinElevation: 0.62
 swampMinMoisture: 0.75
 forestMinMoisture: 0.48

@@ -57,7 +57,7 @@ public static class LandmassStage
 
                 float coastDistance = plan.CoastDistance.Length > index ? plan.CoastDistance[index] : 0f;
                 float coastalRamp = NoiseUtility.SmoothStep(
-                    config.BeachCoastDistance,
+                    config.MinBeachCoastDistance,
                     config.InlandCoastDistance,
                     coastDistance) * config.CoastalRampStrength;
 
@@ -214,11 +214,25 @@ public static class LandmassStage
                 {
                     int index = y * plan.Width + x;
                     float coastDistance = plan.CoastDistance.Length > index ? plan.CoastDistance[index] : 0f;
-                    cell.IsLand = coastDistance > config.LandCoastThreshold && cell.Elevation > landThreshold;
+                    cell.IsLand = coastDistance > config.LandCoastThreshold;
+                    if (cell.IsLand)
+                    {
+                        cell.Elevation = MathF.Max(cell.Elevation, landThreshold + 0.001f);
+                    }
                 }
                 else
                 {
-                    cell.IsLand = cell.Elevation > landThreshold;
+                    int index = y * plan.Width + x;
+                    float mask = plan.IslandMask.Length > index ? plan.IslandMask[index] : 0f;
+                    int edgeDist = Math.Min(
+                        Math.Min(x, y),
+                        Math.Min(plan.Width - 1 - x, plan.Height - 1 - y));
+                    float edgeGuard = NoiseUtility.SmoothStep(
+                        Math.Max(border + 1, border * 2),
+                        border,
+                        edgeDist);
+                    float guardedThreshold = landThreshold + edgeGuard * (1f - Math.Clamp(mask, 0f, 1f)) * 0.10f;
+                    cell.IsLand = cell.Elevation > guardedThreshold;
                 }
 
                 cell.IsCoast = false;

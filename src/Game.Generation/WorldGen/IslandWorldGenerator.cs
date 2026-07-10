@@ -1,4 +1,3 @@
-using Game.Simulation.World.Island;
 using Game.Content.Definitions;
 using Game.Generation.Island;
 using Game.Generation.Regional;
@@ -40,7 +39,7 @@ public sealed class IslandWorldGenerator
         };
 
         RunStage("Apply plan to world", () => ApplyPlanToWorld(world, plan));
-        RunStage("Rivers", () => RegionalFeatureGraph.ApplyRivers(world, plan, _config));
+        RunStage("Rivers", () => FacilityRiverGraphApplier.ApplyToOverworld(world, plan, _config.RiverWidth));
         RunStage("Facility roads", () => FacilityRoadGraphApplier.ApplyToOverworld(world, plan, _config.RoadWidth));
         if (_config.UseLegacyRandomRoads)
         {

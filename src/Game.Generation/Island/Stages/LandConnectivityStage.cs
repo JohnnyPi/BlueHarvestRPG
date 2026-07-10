@@ -72,6 +72,11 @@ public static class LandConnectivityStage
                 ref IslandCellData cell = ref plan.GetCell(x, y);
                 if (cell.IsLand)
                 {
+                    if (cell.Biome is BiomeId.Ocean or BiomeId.ShallowWater or BiomeId.Reef)
+                    {
+                        cell.Biome = cell.IsCoast ? BiomeId.Beach : BiomeId.Plains;
+                    }
+
                     continue;
                 }
 

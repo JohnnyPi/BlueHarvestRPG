@@ -89,7 +89,7 @@ public static class ScenarioObjectiveBinder
             IslandCellRole.Hotel
         ];
 
-        ulong state = SeedUtility.DeriveStage(seed, 93) ^ (ulong)mystery.GetHashCode();
+        ulong state = SeedUtility.DeriveStage(seed, 93) ^ SeedUtility.HashString(mystery);
         int index = (int)(state % (ulong)roles.Length);
         return roles[index];
     }

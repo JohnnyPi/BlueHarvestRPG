@@ -92,11 +92,12 @@ public sealed class FacilityClearingPass : IGenerationPass
             }
         }
 
+        (int doorX, int doorY) = StructurePlacementQueries.DoorWithin(structure, blueprint);
         LocalCoord door = StructurePlacementQueries.ToLocalCoord(
             worldCell,
             structure,
-            blueprint.DoorX,
-            blueprint.DoorY);
+            doorX,
+            doorY);
         CarveApproach(map, door, yardTerrain);
     }
 

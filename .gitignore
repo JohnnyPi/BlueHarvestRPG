@@ -3,6 +3,7 @@ bin/
 obj/
 TestResults/
 **/TestResults/
+artifacts/
 *.user
 *.suo
 *.userosscache

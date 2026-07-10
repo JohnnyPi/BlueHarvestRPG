@@ -1,5 +1,6 @@
 using Game.Content.Definitions;
 using Game.Generation.Noise;
+using Game.Simulation.Seeds;
 
 namespace Game.Generation.Island.Fields;
 
@@ -24,7 +25,7 @@ public static class EllipseSdf
         if (warpSeed != 0)
         {
             float angle = MathF.Atan2(rotY, rotX);
-            ulong blobSeed = warpSeed + (ulong)blob.Name.GetHashCode(StringComparison.Ordinal);
+            ulong blobSeed = warpSeed + SeedUtility.HashString(blob.Name);
             float angularWarp = NoiseUtility.Fbm(
                 blobSeed,
                 MathF.Cos(angle) * 3f,

@@ -1,5 +1,8 @@
+using Game.Content;
+using Game.Content.Definitions;
 using Game.Simulation.Rendering;
 using Game.Simulation.Session;
+using Game.Simulation.World;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using SimTerrain = Game.Simulation.LocalMaps.TerrainId;
@@ -14,9 +17,11 @@ internal sealed class GridTextureCache
     private readonly Color _unseenColor;
     private readonly Color _exploredDimColor;
     private readonly Color _hazardTravelColor;
+    private readonly ElevationShadingDefinition _elevationShading;
 
     private Texture2D? _texture;
     private ushort[]? _sourceCellData;
+    private float[]? _sourceElevationData;
     private bool[]? _sourceVisibleTiles;
     private bool[]? _sourceExploredTiles;
     private GameViewMode _sourceViewMode;
@@ -30,7 +35,8 @@ internal sealed class GridTextureCache
         Color[] terrainColors,
         Color unseenColor,
         Color exploredDimColor,
-        Color hazardTravelColor)
+        Color hazardTravelColor,
+        ElevationShadingDefinition elevationShading)
     {
         _graphicsDevice = graphicsDevice;
         _biomeColors = biomeColors;
@@ -38,12 +44,14 @@ internal sealed class GridTextureCache
         _unseenColor = unseenColor;
         _exploredDimColor = exploredDimColor;
         _hazardTravelColor = hazardTravelColor;
+        _elevationShading = elevationShading;
     }
 
     public Texture2D GetOrBuild(RenderSnapshot snapshot)
     {
         if (_texture is not null &&
             ReferenceEquals(_sourceCellData, snapshot.CellData) &&
+            ReferenceEquals(_sourceElevationData, snapshot.ElevationData) &&
             ReferenceEquals(_sourceVisibleTiles, snapshot.VisibleTiles) &&
             ReferenceEquals(_sourceExploredTiles, snapshot.ExploredTiles) &&
             _sourceViewMode == snapshot.ViewMode &&
@@ -79,6 +87,16 @@ internal sealed class GridTextureCache
                     ? SafeBiomeColor(cellValue)
                     : SafeTerrainColor(cellValue);
 
+                if (snapshot.ViewMode == GameViewMode.Overworld &&
+                    snapshot.ElevationData is not null)
+                {
+                    float brightness = ElevationShadeResolver.ResolveBrightness(
+                        (BiomeId)cellValue,
+                        snapshot.ElevationData[index],
+                        _elevationShading);
+                    baseColor = ElevationShadeTint.Apply(baseColor, brightness);
+                }
+
                 Color color = CellVisibilityTint.Resolve(
                     snapshot,
                     x,
@@ -101,6 +119,7 @@ internal sealed class GridTextureCache
 
         _texture.SetData(_pixelBuffer);
         _sourceCellData = snapshot.CellData;
+        _sourceElevationData = snapshot.ElevationData;
         _sourceVisibleTiles = snapshot.VisibleTiles;
         _sourceExploredTiles = snapshot.ExploredTiles;
         _sourceViewMode = snapshot.ViewMode;

@@ -37,7 +37,8 @@ public static class CoastlineVariationStage
         }
 
         PerturbMapEdgeCoastline(plan, landThreshold, config.MinOceanBorderCells, stageSeed + 180);
-        CoastlineCleanupStage.Execute(plan, config);
+        CoastlineCleanupStage.Execute(plan, config, recomputeCoastDistance: false);
+        CoastDistanceStage.Execute(plan, config);
     }
 
     /// <summary>

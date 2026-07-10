@@ -1,4 +1,5 @@
 using Game.Generation.LocalMaps;
+using Game.Generation.Regional;
 using Game.Generation.WorldGen;
 using Game.Simulation;
 using Game.Simulation.Coordinates;
@@ -6,6 +7,7 @@ using Game.Simulation.LocalMaps;
 using Game.Simulation.Rendering;
 using Game.Simulation.Visibility;
 using Game.Simulation.World;
+using Game.Simulation.World.Island;
 
 namespace Game.Simulation.Tests;
 
@@ -107,6 +109,36 @@ public class IslandRiverTests
     }
 
     [Fact]
+    public void RiverTraces_AreContiguousAndTerminateInExteriorOcean()
+    {
+        Overworld world = new IslandWorldGenerator(TestSaveDefaults.FullIsland).Generate(128, 128, 8804UL);
+        IslandPlan plan = world.IslandPlan!;
+        var localGenerator = new LocalMapGenerator();
+
+        Assert.NotEmpty(plan.RiverGraph.Segments);
+        foreach (FacilityRiverSegment segment in plan.RiverGraph.Segments)
+        {
+            var segmentTiles = new HashSet<(int GlobalX, int GlobalY)>();
+            GlobalTilePathUtility.AddPathWithBorderRuns(
+                segmentTiles,
+                segment.Path,
+                TestSaveDefaults.FullIsland.RiverWidth);
+            Assert.True(GlobalTileConnectivityValidator.IsConnected(segmentTiles));
+
+            WorldCoord mouth = segment.Path[^1];
+            Assert.False(plan.IsLand(mouth.X, mouth.Y));
+            Assert.True(IsExteriorWater(plan, mouth));
+
+            (int mouthX, int mouthY) = FacilityRoadGraph.CellCenterGlobal(mouth);
+            Assert.Contains((mouthX, mouthY), plan.RiverGraph.GlobalRiverTiles);
+            LocalMap mouthMap = localGenerator.Generate(world, MapKey.Surface(mouth));
+            Assert.Equal(
+                TerrainId.ShallowFord,
+                mouthMap.Terrain[mouthMap.GetIndex(LocalMap.Width / 2, LocalMap.Height / 2)]);
+        }
+    }
+
+    [Fact]
     public void BuildRenderSnapshot_IncludesGeologyOverlays()
     {
         SimulationHost host = CreateHost();
@@ -190,5 +222,33 @@ public class IslandRiverTests
         }
 
         return null;
+    }
+
+    private static bool IsExteriorWater(IslandPlan plan, WorldCoord start)
+    {
+        var visited = new HashSet<(int X, int Y)> { (start.X, start.Y) };
+        var queue = new Queue<(int X, int Y)>();
+        queue.Enqueue((start.X, start.Y));
+
+        while (queue.Count > 0)
+        {
+            (int x, int y) = queue.Dequeue();
+            if (x == 0 || y == 0 || x == plan.Width - 1 || y == plan.Height - 1)
+            {
+                return true;
+            }
+
+            foreach ((int dx, int dy) in new[] { (1, 0), (-1, 0), (0, 1), (0, -1) })
+            {
+                int nx = x + dx;
+                int ny = y + dy;
+                if (plan.Contains(nx, ny) && !plan.IsLand(nx, ny) && visited.Add((nx, ny)))
+                {
+                    queue.Enqueue((nx, ny));
+                }
+            }
+        }
+
+        return false;
     }
 }

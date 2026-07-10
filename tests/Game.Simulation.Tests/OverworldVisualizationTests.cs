@@ -39,7 +39,7 @@ public class OverworldVisualizationTests
     }
 
     [Fact]
-    public void BuildRenderSnapshot_IncludesRoadMasksForIslandWorld()
+    public void BuildRenderSnapshot_IncludesRoadAndLavaMasksForIslandWorld()
     {
         SimulationHost host = CreateHost();
         OverworldExploration.RevealAll(host.Overworld);
@@ -48,8 +48,10 @@ public class OverworldVisualizationTests
 
         Assert.NotNull(snapshot.RoadEdgeMask);
         Assert.NotNull(snapshot.RoadCells);
+        Assert.NotNull(snapshot.LavaCells);
         Assert.Contains(snapshot.RoadEdgeMask, mask => mask != 0);
         Assert.Contains(snapshot.RoadCells, isRoad => isRoad);
+        Assert.Contains(snapshot.LavaCells, isLava => isLava);
     }
 
     [Fact]

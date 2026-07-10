@@ -19,6 +19,12 @@
       "commands": [
         "mgcb-editor-windows"
       ]
+    },
+    "dotnet-mgcb-editor-mac": {
+      "version": "3.8.4.1",
+      "commands": [
+        "mgcb-editor-mac"
+      ]
     }
   }
 }

@@ -1,4 +1,5 @@
 using Game.Content;
+using Game.Content.Definitions;
 using Game.Generation.Island;
 using Game.Generation.LocalMaps;
 using Game.Generation.WorldGen;
@@ -21,7 +22,9 @@ public sealed class PreviewWorldHost
     public PreviewWorldHost(GameContentBundle bundle)
     {
         _bundle = bundle;
-        _localMapGenerator = new LocalMapGenerator(_bundle.CreateBlueprintCatalog());
+        _localMapGenerator = new LocalMapGenerator(
+            _bundle.CreateBlueprintCatalog(),
+            _bundle.BiomeRules);
     }
 
     public RenderSnapshot? Snapshot { get; private set; }
@@ -43,10 +46,13 @@ public sealed class PreviewWorldHost
         return generator.Generate(request.Seed);
     }
 
-    public void ApplyGeneratedWorld(Overworld world)
+    public void ApplyGeneratedWorld(Overworld world, BiomeRulesDefinition? biomeRules = null)
     {
         Overworld = world;
-        var repository = new InMemoryLocalMapRepository(world, _localMapGenerator);
+        LocalMapGenerator generator = biomeRules is null
+            ? _localMapGenerator
+            : new LocalMapGenerator(_bundle.CreateBlueprintCatalog(), biomeRules);
+        var repository = new InMemoryLocalMapRepository(world, generator);
         var session = new GameSession(world, repository);
         OverworldExploration.RevealAll(world);
         session.RevealEntireOverworld();

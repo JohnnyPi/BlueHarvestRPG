@@ -8,6 +8,8 @@ public static class VolcanicConeUtility
     public const float LavaCoreRadiusFraction = 0.30f;
     public const float MountainRingRadiusFraction = 0.58f;
     public const float HillRingRadiusFraction = 0.88f;
+    public const float ApronExtent = 1.25f;
+    public const float ApronHeightFraction = 0.08f;
 
     public static float ComputeBaseRadiusCells(IslandPlan plan, IslandDefinition config)
     {
@@ -50,5 +52,34 @@ public static class VolcanicConeUtility
         }
 
         return normalizedDistance <= 1f;
+    }
+
+    public static float EvaluateElevationProfile(
+        float footElevation,
+        float coneHeight,
+        float normalizedDistance)
+    {
+        float norm = MathF.Max(0f, normalizedDistance);
+        float apronHeight = coneHeight * ApronHeightFraction;
+        if (norm <= 1f)
+        {
+            return footElevation
+                + apronHeight
+                + (coneHeight - apronHeight) * SmoothFalloff(norm);
+        }
+
+        if (norm >= ApronExtent)
+        {
+            return footElevation;
+        }
+
+        float apronNorm = (norm - 1f) / (ApronExtent - 1f);
+        return footElevation + apronHeight * SmoothFalloff(apronNorm);
+    }
+
+    private static float SmoothFalloff(float norm)
+    {
+        float t = Math.Clamp(1f - norm, 0f, 1f);
+        return t * t * (3f - 2f * t);
     }
 }

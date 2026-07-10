@@ -32,6 +32,130 @@ public sealed class NavigabilityValidator
         return new ValidationResult(reachability, reachable, walkable, repairAttempts);
     }
 
+    public bool EnsureConnected(
+        LocalMap map,
+        LocalCoord start,
+        LocalCoord target,
+        bool allowInteriorWallRepair = false)
+    {
+        if (!map.Contains(start) || !map.Contains(target))
+        {
+            return false;
+        }
+
+        if (TryFindPath(map, start, target, allowRepairs: false, allowInteriorWallRepair, out _))
+        {
+            return true;
+        }
+
+        if (!TryFindPath(map, start, target, allowRepairs: true, allowInteriorWallRepair, out List<LocalCoord>? path))
+        {
+            return false;
+        }
+
+        foreach (LocalCoord coord in path!)
+        {
+            if (!map.BlocksMovement(coord))
+            {
+                continue;
+            }
+
+            TerrainId replacement = map.IsStructureInterior ? TerrainId.Floor : TerrainId.Grass;
+            map.SetTerrain(coord.X, coord.Y, replacement, TileFlags.None);
+        }
+
+        return TryFindPath(map, start, target, allowRepairs: false, allowInteriorWallRepair, out _);
+    }
+
+    private static bool TryFindPath(
+        LocalMap map,
+        LocalCoord start,
+        LocalCoord target,
+        bool allowRepairs,
+        bool allowInteriorWallRepair,
+        out List<LocalCoord>? path)
+    {
+        int tileCount = LocalMap.Width * LocalMap.Height;
+        var previous = new int[tileCount];
+        Array.Fill(previous, -1);
+        int startIndex = map.GetIndex(start.X, start.Y);
+        int targetIndex = map.GetIndex(target.X, target.Y);
+        previous[startIndex] = startIndex;
+
+        var queue = new Queue<LocalCoord>();
+        queue.Enqueue(start);
+        while (queue.Count > 0)
+        {
+            LocalCoord current = queue.Dequeue();
+            if (current == target)
+            {
+                break;
+            }
+
+            foreach ((int dx, int dy) in Cardinal)
+            {
+                var next = new LocalCoord(current.X + dx, current.Y + dy);
+                if (!map.Contains(next))
+                {
+                    continue;
+                }
+
+                int nextIndex = map.GetIndex(next.X, next.Y);
+                if (previous[nextIndex] >= 0 || !CanTraverse(map, next, allowRepairs, allowInteriorWallRepair))
+                {
+                    continue;
+                }
+
+                previous[nextIndex] = map.GetIndex(current.X, current.Y);
+                queue.Enqueue(next);
+            }
+        }
+
+        if (previous[targetIndex] < 0)
+        {
+            path = null;
+            return false;
+        }
+
+        path = [];
+        for (int index = targetIndex; ; index = previous[index])
+        {
+            path.Add(new LocalCoord(index % LocalMap.Width, index / LocalMap.Width));
+            if (index == startIndex)
+            {
+                break;
+            }
+        }
+
+        path.Reverse();
+        return true;
+    }
+
+    private static bool CanTraverse(
+        LocalMap map,
+        LocalCoord coord,
+        bool allowRepairs,
+        bool allowInteriorWallRepair)
+    {
+        if (!map.BlocksMovement(coord))
+        {
+            return true;
+        }
+
+        if (!allowRepairs)
+        {
+            return false;
+        }
+
+        TerrainId terrain = map.Terrain[map.GetIndex(coord.X, coord.Y)];
+        return terrain switch
+        {
+            TerrainId.Tree or TerrainId.Rock or TerrainId.DenseCanopy or TerrainId.Undergrowth => true,
+            TerrainId.InteriorWall => allowInteriorWallRepair,
+            _ => false
+        };
+    }
+
     private static float MeasureReachability(
         LocalMap map,
         LocalCoord entryPoint,

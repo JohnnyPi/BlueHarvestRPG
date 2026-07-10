@@ -35,16 +35,25 @@ public static class FacilityRoadGraphApplier
                     continue;
                 }
 
-                int localOffset = edge is Direction.East or Direction.West
-                    ? LocalMap.Height / 2 - roadWidth / 2
-                    : LocalMap.Width / 2 - roadWidth / 2;
+                var fromCoord = new WorldCoord(x, y);
+                var toCoord = new WorldCoord(nx, ny);
+                if (!GlobalTilePathUtility.TryComputeEdgeLocalOffset(
+                        plan.RoadGraph.GlobalPathTiles,
+                        fromCoord,
+                        toCoord,
+                        edge,
+                        roadWidth,
+                        out int localOffset))
+                {
+                    continue;
+                }
 
                 world.AddEdgeConnection(
-                    coord,
+                    fromCoord,
                     new EdgeConnection(edge, localOffset, ConnectionType.Road, roadWidth));
 
                 world.AddEdgeConnection(
-                    new WorldCoord(nx, ny),
+                    toCoord,
                     new EdgeConnection(edge.Opposite(), localOffset, ConnectionType.Road, roadWidth));
             }
         }

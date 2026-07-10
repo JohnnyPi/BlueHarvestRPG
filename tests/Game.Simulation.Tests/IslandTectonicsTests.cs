@@ -33,8 +33,7 @@ public class IslandTectonicsTests
     {
         IslandPlan plan = new IslandPlanner(TestSaveDefaults.FullIsland).Generate(128, 128, 9003UL);
 
-        Assert.NotEmpty(plan.VolcanicSites);
-        Assert.InRange(plan.VolcanicSites.Count, 1, 3);
+        Assert.Single(plan.VolcanicSites);
         Assert.Contains(plan.Cells, cell => cell.Biome == BiomeId.Volcanic);
     }
 

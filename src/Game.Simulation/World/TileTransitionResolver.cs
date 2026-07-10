@@ -70,16 +70,13 @@ public static class TileTransitionResolver
             return false;
         }
 
+        WorldCoord originCell = StructurePlacementQueries.OriginCell(structure);
         var blueprint = blueprintCatalog.ResolveById(structure.BlueprintId);
-        LocalCoord interiorDoor = StructurePlacementQueries.ToLocalCoord(
-            map.WorldPosition,
-            structure,
-            blueprint.DoorX,
-            blueprint.DoorY);
+        LocalCoord interiorDoor = StructurePlacementQueries.InteriorDoorLocal(structure, blueprint);
 
         transition = new TileTransition(
             TileTransitionKind.EnterStructure,
-            new MapKey(map.WorldPosition, structure.InstanceId, 0),
+            new MapKey(originCell, structure.InstanceId, 0),
             interiorDoor,
             RequiresRope: false);
 
@@ -106,17 +103,13 @@ public static class TileTransitionResolver
             return false;
         }
 
+        WorldCoord originCell = StructurePlacementQueries.OriginCell(structure);
         var blueprint = blueprintCatalog.ResolveById(structure.BlueprintId);
-        LocalCoord stairLocal = StructurePlacementQueries.ToLocalCoord(
-            map.WorldPosition,
+        LocalCoord stairLocal = StructurePlacementQueries.InteriorLocal(
             structure,
             blueprint.StairX,
             blueprint.StairY);
-        LocalCoord doorLocal = StructurePlacementQueries.ToLocalCoord(
-            map.WorldPosition,
-            structure,
-            blueprint.DoorX,
-            blueprint.DoorY);
+        LocalCoord doorLocal = StructurePlacementQueries.InteriorDoorLocal(structure, blueprint);
 
         if (terrain == TerrainId.StructureExit || (terrain == TerrainId.Door && map.FloorIndex == 0))
         {
@@ -125,15 +118,10 @@ public static class TileTransitionResolver
                 return false;
             }
 
-            LocalCoord surfaceDoor = StructurePlacementQueries.ToLocalCoord(
-                map.WorldPosition,
-                structure,
-                blueprint.DoorX,
-                blueprint.DoorY);
             transition = new TileTransition(
                 TileTransitionKind.ExitStructure,
-                MapKey.Surface(map.WorldPosition),
-                surfaceDoor,
+                MapKey.Surface(StructurePlacementQueries.DoorCell(structure, blueprint)),
+                StructurePlacementQueries.SurfaceDoorLocal(structure, blueprint),
                 RequiresRope: false);
             return true;
         }
@@ -153,7 +141,7 @@ public static class TileTransitionResolver
 
                 transition = new TileTransition(
                     TileTransitionKind.StairsDown,
-                    new MapKey(map.WorldPosition, structure.InstanceId, targetFloor),
+                    new MapKey(originCell, structure.InstanceId, targetFloor),
                     stairLocal,
                     RequiresRope: false);
                 return true;
@@ -169,7 +157,7 @@ public static class TileTransitionResolver
 
                 transition = new TileTransition(
                     TileTransitionKind.StairsUp,
-                    new MapKey(map.WorldPosition, structure.InstanceId, targetFloor),
+                    new MapKey(originCell, structure.InstanceId, targetFloor),
                     stairLocal,
                     RequiresRope: false);
                 return true;
@@ -179,25 +167,16 @@ public static class TileTransitionResolver
         if (terrain == TerrainId.Window &&
             blueprintCatalog.TryGetRopeExit(structure, map.FloorIndex, out int ropeX, out int ropeY))
         {
-            LocalCoord ropeLocal = StructurePlacementQueries.ToLocalCoord(
-                map.WorldPosition,
-                structure,
-                ropeX,
-                ropeY);
+            LocalCoord ropeLocal = StructurePlacementQueries.InteriorLocal(structure, ropeX, ropeY);
             if (position != ropeLocal)
             {
                 return false;
             }
 
-            LocalCoord surfaceDoor = StructurePlacementQueries.ToLocalCoord(
-                map.WorldPosition,
-                structure,
-                blueprint.DoorX,
-                blueprint.DoorY);
             transition = new TileTransition(
                 TileTransitionKind.RopeDescent,
-                MapKey.Surface(map.WorldPosition),
-                surfaceDoor,
+                MapKey.Surface(StructurePlacementQueries.DoorCell(structure, blueprint)),
+                StructurePlacementQueries.SurfaceDoorLocal(structure, blueprint),
                 RequiresRope: true);
             return true;
         }

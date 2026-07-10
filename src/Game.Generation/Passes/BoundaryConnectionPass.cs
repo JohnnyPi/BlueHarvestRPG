@@ -7,16 +7,28 @@ namespace Game.Generation.Passes;
 
 public sealed class BoundaryConnectionPass : IGenerationPass
 {
+    private const int ConnectorLength = 6;
+
     public void Execute(LocalMap map, LocalGenerationContext context)
     {
         foreach (EdgeConnection connection in context.Connections)
         {
             if (connection.Type == ConnectionType.Road)
             {
+                if (context.IslandPlan?.RoadGraph.GlobalPathTiles.Count > 0)
+                {
+                    continue;
+                }
+
                 ApplyRoadConnection(map, connection);
             }
             else if (connection.Type == ConnectionType.River)
             {
+                if (context.IslandPlan?.RiverGraph.GlobalRiverTiles.Count > 0)
+                {
+                    continue;
+                }
+
                 ApplyRiverConnection(map, connection);
             }
         }
@@ -24,33 +36,35 @@ public sealed class BoundaryConnectionPass : IGenerationPass
 
     private static void ApplyRoadConnection(LocalMap map, EdgeConnection connection)
     {
-        StampRoadCorridor(map, connection);
+        StampConnector(map, connection, StampRoad);
     }
 
     private static void ApplyRiverConnection(LocalMap map, EdgeConnection connection)
     {
-        StampRiverCorridor(map, connection);
+        StampConnector(map, connection, StampRiver);
     }
 
-    private static void StampRoadCorridor(LocalMap map, EdgeConnection connection)
+    private static void StampConnector(LocalMap map, EdgeConnection connection, Action<LocalMap, int, int> stamp)
     {
         if (connection.Edge is Direction.East or Direction.West)
         {
+            int xStart = connection.Edge == Direction.West ? 0 : LocalMap.Width - ConnectorLength;
             for (int y = connection.LocalOffset; y < connection.LocalOffset + connection.Width; y++)
             {
-                for (int x = 0; x < LocalMap.Width; x++)
+                for (int x = xStart; x < xStart + ConnectorLength; x++)
                 {
-                    StampRoad(map, x, y);
+                    stamp(map, x, y);
                 }
             }
         }
         else
         {
+            int yStart = connection.Edge == Direction.North ? 0 : LocalMap.Height - ConnectorLength;
             for (int x = connection.LocalOffset; x < connection.LocalOffset + connection.Width; x++)
             {
-                for (int y = 0; y < LocalMap.Height; y++)
+                for (int y = yStart; y < yStart + ConnectorLength; y++)
                 {
-                    StampRoad(map, x, y);
+                    stamp(map, x, y);
                 }
             }
         }
@@ -58,31 +72,25 @@ public sealed class BoundaryConnectionPass : IGenerationPass
 
     private static void StampRoad(LocalMap map, int x, int y)
     {
-        map.SetTerrain(x, y, TerrainId.Road, TileFlags.None);
-    }
+        if (x < 0 || y < 0 || x >= LocalMap.Width || y >= LocalMap.Height)
+        {
+            return;
+        }
 
-    private static void StampRiverCorridor(LocalMap map, EdgeConnection connection)
-    {
-        if (connection.Edge is Direction.East or Direction.West)
+        int index = map.GetIndex(x, y);
+        TerrainId terrain = map.Terrain[index];
+        if (terrain == TerrainId.ShallowFord)
         {
-            for (int y = connection.LocalOffset; y < connection.LocalOffset + connection.Width; y++)
-            {
-                for (int x = 0; x < LocalMap.Width; x++)
-                {
-                    StampRiver(map, x, y);
-                }
-            }
+            return;
         }
-        else
+
+        if (terrain is TerrainId.Wall or TerrainId.InteriorWall or TerrainId.Door or TerrainId.Fence
+            or TerrainId.Floor or TerrainId.StructureExit or TerrainId.Dock)
         {
-            for (int x = connection.LocalOffset; x < connection.LocalOffset + connection.Width; x++)
-            {
-                for (int y = 0; y < LocalMap.Height; y++)
-                {
-                    StampRiver(map, x, y);
-                }
-            }
+            return;
         }
+
+        map.SetTerrain(x, y, TerrainId.Road, TileFlags.None);
     }
 
     private static void StampRiver(LocalMap map, int x, int y)
@@ -94,7 +102,13 @@ public sealed class BoundaryConnectionPass : IGenerationPass
 
         int index = map.GetIndex(x, y);
         TerrainId terrain = map.Terrain[index];
-        if (terrain is TerrainId.Road or TerrainId.Door or TerrainId.Wall or TerrainId.Concrete)
+        if (terrain is TerrainId.Road)
+        {
+            map.SetTerrain(x, y, TerrainId.ShallowFord, TileFlags.ContainsWater);
+            return;
+        }
+
+        if (terrain is TerrainId.Door or TerrainId.Wall or TerrainId.Concrete)
         {
             return;
         }
